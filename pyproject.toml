@@ -1,0 +1,21 @@
+[project]
+name = "hibiscus"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "agno>=1.1.9",
+    "crewai>=0.105.0",
+    "crewai-tools>=0.37.0",
+    "duckduckgo-search>=7.5.1",
+    "fastapi>=0.115.11",
+    "llama-index>=0.12.23",
+    "loguru>=0.7.3",
+    "numpy>=2.2.3",
+    "openai>=1.65.4",
+    "requests>=2.32.3",
+    "smolagents>=1.10.0",
+    "tantivy>=0.22.0",
+    "uvicorn>=0.34.0",
+]
