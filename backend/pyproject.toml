@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hibiscus-backend"
+version = "0.1.0"
+description = "Hibiscus Agent Registry Backend"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    {name = "Hibiscus Team"}
+]
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.23.2",
+    "pydantic>=2.4.2",
+    "python-jose[cryptography]>=3.3.0",
+    "supabase>=1.0.3",
+    "httpx>=0.24.1",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.7.0",
+    "isort>=5.12.0",
+    "ruff>=0.0.284",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.ruff]
+line-length = 88
