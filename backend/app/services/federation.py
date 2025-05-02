@@ -1,7 +1,8 @@
 import httpx
 import asyncio
 from typing import Dict, List, Any, Optional
-from db import Database
+
+from app.db.client import Database
 
 class FederatedRegistryClient:
     """
@@ -100,6 +101,9 @@ async def get_federated_agents(
         )
         for registry in federated_registries
     ]
+    
+    if not clients:
+        return []
     
     # Calculate how many agents to get from each registry
     # This is a simple approach - more sophisticated pagination would be needed for production

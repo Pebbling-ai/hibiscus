@@ -6,7 +6,8 @@ from jose import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from dotenv import load_dotenv
-from db import Database
+
+from app.db.client import Database
 
 # Load environment variables
 load_dotenv()
@@ -71,9 +72,9 @@ class Auth:
         # Generate API key
         return await Database.create_api_key(user_id, name, expires_at.isoformat() if expires_at else None)
 
-    @staticmethod
-    async def get_current_user_from_api_key(api_key_data: Dict[str, Any] = Depends(get_api_key)) -> Dict[str, Any]:
-        """
-        Get current user from API key.
-        """
-        return api_key_data["user"]
+
+async def get_current_user_from_api_key(api_key_data: Dict[str, Any] = Depends(Auth.get_api_key)) -> Dict[str, Any]:
+    """
+    Get current user from API key.
+    """
+    return api_key_data["user"]
