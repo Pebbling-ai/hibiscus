@@ -20,6 +20,11 @@ dependencies = [
     "httpx>=0.24.1",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.6",
+    "requests>=2.32.3",
+    "psycopg2-binary>=2.9.10",
+    "asyncpg>=0.30.0",
+    "loguru>=0.7.3",
+    "rich>=14.0.0",
 ]
 
 [project.optional-dependencies]
@@ -38,3 +43,6 @@ profile = "black"
 
 [tool.ruff]
 line-length = 88
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

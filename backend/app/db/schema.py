@@ -18,27 +18,10 @@ SUPABASE_SCHEMA = {
                 {"name": "user_id", "type": "uuid", "notNull": True, "references": {"table": "users", "column": "id"}},
                 {"name": "key", "type": "text", "notNull": True, "unique": True},
                 {"name": "name", "type": "text", "notNull": True},
+                {"name": "description", "type": "text"},
                 {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
                 {"name": "last_used_at", "type": "timestamp with time zone"},
                 {"name": "expires_at", "type": "timestamp with time zone"},
-            ]
-        },
-        {
-            "name": "agents",
-            "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
-                {"name": "owner_id", "type": "uuid", "notNull": True, "references": {"table": "users", "column": "id"}},
-                {"name": "name", "type": "text", "notNull": True},
-                {"name": "description", "type": "text", "notNull": True},
-                {"name": "category", "type": "text", "notNull": True},
-                {"name": "capabilities", "type": "jsonb", "notNull": True, "default": "[]"},
-                {"name": "api_endpoint", "type": "text"},
-                {"name": "website_url", "type": "text"},
-                {"name": "logo_url", "type": "text"},
-                {"name": "is_federated", "type": "boolean", "notNull": True, "default": False},
-                {"name": "federation_source", "type": "text"},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
-                {"name": "updated_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
             ]
         },
         {
@@ -51,13 +34,64 @@ SUPABASE_SCHEMA = {
                 {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
                 {"name": "last_synced_at", "type": "timestamp with time zone"},
             ]
+        },
+        {
+            "name": "agents",
+            "columns": [
+                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
+                {"name": "user_id", "type": "uuid", "notNull": True, "references": {"table": "users", "column": "id"}},
+                {"name": "name", "type": "text", "notNull": True},
+                {"name": "description", "type": "text", "notNull": True},
+                {"name": "documentation", "type": "text"},
+                {"name": "capabilities", "type": "jsonb"},
+                {"name": "domains", "type": "text[]"},
+                {"name": "tags", "type": "text[]"},
+                {"name": "metadata", "type": "jsonb"},
+                {"name": "links", "type": "jsonb"},
+                {"name": "dependencies", "type": "jsonb"},
+                {"name": "version", "type": "text", "notNull": True},
+                {"name": "author_name", "type": "text", "notNull": True},
+                {"name": "author_url", "type": "text"},
+                {"name": "api_endpoint", "type": "text"},
+                {"name": "website_url", "type": "text"},
+                {"name": "logo_url", "type": "text"},
+                {"name": "did", "type": "text", "unique": True},
+                {"name": "did_document", "type": "jsonb"},
+                {"name": "is_federated", "type": "boolean", "notNull": True, "default": False},
+                {"name": "federation_source", "type": "text"},
+                {"name": "registry_id", "type": "uuid", "references": {"table": "federated_registries", "column": "id"}},
+                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
+                {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
+            ]
+        },
+        {
+            "name": "agent_verification",
+            "columns": [
+                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
+                {"name": "agent_id", "type": "uuid", "notNull": True, "references": {"table": "agents", "column": "id"}},
+                {"name": "public_key", "type": "text", "notNull": True},
+                {"name": "certificate", "type": "text"},
+                {"name": "key_type", "type": "text", "notNull": True, "default": "rsa"},
+                {"name": "verification_method", "type": "text", "notNull": True, "default": "mlts"},
+                {"name": "encrypted_private_key", "type": "text"},
+                {"name": "encryption_method", "type": "text", "default": "AES-256-GCM"},
+                {"name": "encryption_metadata", "type": "jsonb"},
+                {"name": "private_key_path", "type": "text"},
+                {"name": "key_metadata", "type": "jsonb"},
+                {"name": "last_verified_at", "type": "timestamp with time zone"},
+                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
+                {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
+            ]
         }
     ],
     "indexes": [
         {"table": "agents", "columns": ["name"], "method": "btree"},
-        {"table": "agents", "columns": ["category"], "method": "btree"},
-        {"table": "agents", "columns": ["description"], "method": "gin", "options": "to_tsvector('english', description)"},
+        # For the GIN index, we need a different approach
+        # This will create a GIN index named idx_agents_description_gin_tsvector
+        {"table": "agents", "name": "idx_agents_description_gin_tsvector", "sql": "CREATE INDEX IF NOT EXISTS idx_agents_description_gin_tsvector ON agents USING gin (to_tsvector('english', description))"},
+        {"table": "agents", "columns": ["did"], "method": "btree"},
         {"table": "api_keys", "columns": ["user_id"], "method": "btree"},
+        {"table": "agent_verification", "columns": ["agent_id"], "method": "btree"},
     ],
     "policies": [
         {
@@ -71,22 +105,22 @@ SUPABASE_SCHEMA = {
             "table": "agents",
             "name": "agents_insert_policy",
             "definition": "INSERT",
-            "using": "auth.uid() = owner_id",
-            "check": "auth.uid() = owner_id"
+            "using": "auth.uid() = user_id",
+            "check": "auth.uid() = user_id"
         },
         {
             "table": "agents",
             "name": "agents_update_policy",
             "definition": "UPDATE",
-            "using": "auth.uid() = owner_id",
-            "check": "auth.uid() = owner_id"
+            "using": "auth.uid() = user_id",
+            "check": "auth.uid() = user_id"
         },
         {
             "table": "agents",
             "name": "agents_delete_policy",
             "definition": "DELETE",
-            "using": "auth.uid() = owner_id",
-            "check": "auth.uid() = owner_id"
+            "using": "auth.uid() = user_id",
+            "check": "auth.uid() = user_id"
         },
         {
             "table": "api_keys",
@@ -108,6 +142,27 @@ SUPABASE_SCHEMA = {
             "definition": "DELETE",
             "using": "auth.uid() = user_id",
             "check": "auth.uid() = user_id"
+        },
+        {
+            "table": "agent_verification",
+            "name": "agent_verification_select_policy",
+            "definition": "SELECT",
+            "using": "TRUE",
+            "check": "TRUE"
+        },
+        {
+            "table": "agent_verification",
+            "name": "agent_verification_insert_policy",
+            "definition": "INSERT",
+            "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
+        },
+        {
+            "table": "agent_verification",
+            "name": "agent_verification_update_policy",
+            "definition": "UPDATE",
+            "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
         }
     ]
 }

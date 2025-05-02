@@ -32,8 +32,9 @@ backend/
 │   │   └── federation.py   # Federation client implementation
 │   ├── utils/              # Utility functions
 │   └── main.py             # FastAPI application entry point
-├── run.py                  # Server runner script
-└── init_db.py              # Database initialization script
+├── scripts/                # Utility scripts
+│   └── init_db.py          # Database initialization script
+└── run.py                  # Server runner script
 ```
 
 ## Getting Started
@@ -117,7 +118,7 @@ For local development without Supabase, the application includes a mock database
 To initialize the Supabase database with the required schema:
 
 ```bash
-python init_db.py
+python scripts/init_db.py
 ```
 
 ### Adding New Routes

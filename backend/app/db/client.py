@@ -109,59 +109,46 @@ class Database:
         return query_fn(supabase)
     
     @staticmethod
-    async def list_agents(
-        search: Optional[str] = None,
-        category: Optional[str] = None,
-        include_federated: bool = True,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    async def list_agents(limit: int = 100, offset: int = 0, search_term: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        List agents with optional filtering.
+        List all agents with optional filtering and deserialize JSON fields.
         """
         if supabase is None:
             # Use mock database
             agents = MOCK_DB.get(AGENTS_TABLE, [])
-            filtered_agents = []
             
-            for agent in agents:
-                # Apply filters
-                if not include_federated and agent.get("is_federated", False):
-                    continue
-                
-                if category and agent.get("category") != category:
-                    continue
-                
-                if search:
-                    search_lower = search.lower()
-                    name = agent.get("name", "").lower()
-                    description = agent.get("description", "").lower()
-                    if search_lower not in name and search_lower not in description:
-                        continue
-                
-                filtered_agents.append(agent)
+            # Apply search filter if provided
+            if search_term:
+                search_term = search_term.lower()
+                filtered_agents = []
+                for agent in agents:
+                    if (
+                        search_term in agent.get("name", "").lower() or
+                        search_term in agent.get("description", "").lower() or
+                        any(search_term in tag.lower() for tag in agent.get("tags", []) if isinstance(tag, str)) or
+                        search_term in agent.get("documentation", "").lower() or
+                        any(search_term in domain.lower() for domain in agent.get("domains", []) if isinstance(domain, str))
+                    ):
+                        filtered_agents.append(agent)
+                agents = filtered_agents
             
             # Apply pagination
-            paginated_agents = filtered_agents[skip:skip+limit]
-            return paginated_agents
+            paginated_agents = agents[offset:offset+limit]
+            
+            # Parse JSON fields
+            return [Database._parse_agent_json_fields(agent) for agent in paginated_agents]
         
         # Use Supabase
         query = supabase.table(AGENTS_TABLE).select("*")
-
-        # Apply filters
-        if search:
-            query = query.or_(f"name.ilike.%{search}%,description.ilike.%{search}%")
         
-        if category:
-            query = query.eq("category", category)
-        
-        if not include_federated:
-            query = query.eq("is_federated", False)
+        # Apply search filter if provided
+        if search_term:
+            search_term = search_term.lower()
+            query = query.or_(f"name.ilike.%{search_term}%,description.ilike.%{search_term}%,documentation.ilike.%{search_term}%")
         
         # Apply pagination
-        query = query.range(skip, skip + limit - 1)
+        query = query.range(offset, offset + limit - 1)
         
-        # Execute query
         response = query.execute()
         
         if hasattr(response, "error") and response.error:
@@ -172,13 +159,15 @@ class Database:
     @staticmethod
     async def get_agent(agent_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get a specific agent by ID.
+        Get agent by ID and deserialize JSON fields.
         """
         if supabase is None:
             # Use mock database
-            for agent in MOCK_DB.get(AGENTS_TABLE, []):
-                if agent.get("id") == agent_id:
-                    return agent
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            for agent in agents:
+                if agent["id"] == agent_id:
+                    # Parse JSON fields that might be stored as strings
+                    return Database._parse_agent_json_fields(agent)
             return None
         
         # Use Supabase
@@ -190,37 +179,128 @@ class Database:
         if not response.data:
             return None
         
-        return response.data[0]
+        # Parse any JSON fields that might be stored as strings
+        return Database._parse_agent_json_fields(response.data[0])
 
     @staticmethod
-    async def create_agent(agent_data: Dict[str, Any], owner_id: str) -> Dict[str, Any]:
+    def _parse_agent_json_fields(agent: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create a new agent.
+        Parse JSON fields that might be stored as strings.
         """
+        # Parse JSON fields that might be stored as strings
+        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
+            if field in agent and isinstance(agent[field], str):
+                agent[field] = json.loads(agent[field])
+        
+        return agent
+
+    @staticmethod
+    async def create_agent(agent_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new agent with the given data following the Agent Communication Protocol standard.
+        
+        The agent_data should include:
+        - name: RFC 1123 DNS-label compatible name
+        - description: Human-readable description
+        - documentation: (Optional) Full markdown documentation
+        - capabilities: (Optional) List of capability objects with name and description
+        - domains: (Optional) List of domain strings
+        - tags: (Optional) List of tag strings
+        - metadata: (Optional) Object containing framework, programming_language, license, etc.
+        - links: (Optional) List of link objects with type and URL
+        - dependencies: (Optional) List of dependency objects
+        - version: Version string
+        - author_name: Name of the agent's author
+        - author_url: (Optional) URL for the author
+        - api_endpoint: (Optional) URL for the agent's API
+        - website_url: (Optional) URL for the agent's website
+        - logo_url: (Optional) URL for the agent's logo
+        - is_federated: Boolean indicating if the agent is from a federated registry
+        - federation_source: (Optional) Source registry of a federated agent
+        - user_id: ID of the user creating the agent
+        """
+        agent_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
         
-        agent_record = {
-            **agent_data,
-            "owner_id": owner_id,
+        # Handle json serialization for complex fields
+        agent_data_copy = agent_data.copy()
+        
+        # Convert capabilities, metadata, links, and dependencies to JSON if they exist
+        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
+            if field in agent_data_copy and agent_data_copy[field] is not None:
+                agent_data_copy[field] = json.dumps(agent_data_copy[field])
+        
+        # Prepare the agent data
+        agent = {
+            "id": agent_id,
             "created_at": now,
             "updated_at": now,
+            **agent_data_copy
         }
-        
-        if "id" not in agent_record:
-            agent_record["id"] = str(uuid.uuid4())
         
         if supabase is None:
             # Use mock database
-            MOCK_DB.setdefault(AGENTS_TABLE, []).append(agent_record)
-            return agent_record
+            MOCK_DB.setdefault(AGENTS_TABLE, []).append(agent)
+            return agent
         
         # Use Supabase
-        response = supabase.table(AGENTS_TABLE).insert(agent_record).execute()
+        response = supabase.table(AGENTS_TABLE).insert(agent).execute()
         
         if hasattr(response, "error") and response.error:
             raise Exception(f"Error creating agent: {response.error.message}")
         
-        return response.data[0]
+        return response.data[0] if response.data else agent
+        
+    @staticmethod
+    async def update_agent(agent_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing agent with the given data following the Agent Communication Protocol standard.
+        
+        The update_data can include any subset of fields from AgentUpdate model:
+        - name: RFC 1123 DNS-label compatible name
+        - description: Human-readable description
+        - documentation: Full markdown documentation
+        - capabilities: List of capability objects with name and description
+        - domains: List of domain strings
+        - tags: List of tag strings
+        - metadata: Object containing framework, programming_language, license, etc.
+        - links: List of link objects with type and URL
+        - dependencies: List of dependency objects
+        - version: Version string
+        - author_name: Name of the agent's author
+        - author_url: URL for the author
+        - api_endpoint: URL for the agent's API
+        - website_url: URL for the agent's website
+        - logo_url: URL for the agent's logo
+        """
+        # Make a copy so we don't modify the original
+        update_data_copy = update_data.copy()
+        update_data_copy["updated_at"] = datetime.utcnow().isoformat()
+        
+        # Convert capabilities, metadata, links, and dependencies to JSON if they exist
+        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
+            if field in update_data_copy and update_data_copy[field] is not None:
+                update_data_copy[field] = json.dumps(update_data_copy[field])
+        
+        if supabase is None:
+            # Use mock database
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            for i, agent in enumerate(agents):
+                if agent["id"] == agent_id:
+                    agents[i] = {**agent, **update_data_copy}
+                    return Database._parse_agent_json_fields(agents[i])
+            raise Exception(f"Agent with ID {agent_id} not found")
+        
+        # Use Supabase
+        response = supabase.table(AGENTS_TABLE).update(update_data_copy).eq("id", agent_id).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error updating agent: {response.error.message}")
+        
+        if not response.data:
+            raise Exception(f"Agent with ID {agent_id} not found")
+        
+        return Database._parse_agent_json_fields(response.data[0])
 
     @staticmethod
     async def validate_api_key(api_key: str) -> Optional[Dict[str, Any]]:
@@ -287,9 +367,18 @@ class Database:
         }
 
     @staticmethod
-    async def create_api_key(user_id: str, name: str, expires_at: Optional[str] = None) -> Dict[str, Any]:
+    async def create_api_key(user_id: str, name: str, expires_at: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
         """
         Create a new API key for a user.
+        
+        Args:
+            user_id: The ID of the user who owns the key
+            name: A user-friendly name for the key
+            expires_at: Optional ISO-format datetime string when the key expires
+            description: Optional description of what the key is used for
+            
+        Returns:
+            The created API key data
         """
         key = secrets.token_hex(32)
         now = datetime.utcnow().isoformat()
@@ -299,6 +388,7 @@ class Database:
             "user_id": user_id,
             "key": key,
             "name": name,
+            "description": description,
             "created_at": now,
             "last_used_at": None,
             "expires_at": expires_at,

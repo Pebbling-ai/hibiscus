@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
@@ -9,20 +9,24 @@ from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse
 router = APIRouter(prefix="/user", tags=["user"])
 
 
-@router.post("/tokens", response_model=ApiKeyResponse)
+@router.post("/tokens", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_token(
     api_key_data: ApiKeyCreate,
     current_user = Depends(get_current_user_from_api_key),
+    response: Response = None,
 ):
     """
     Create a new API token for the authenticated user.
+    
+    This endpoint allows frontend users to generate personal access tokens for API usage.
+    Tokens can be set to expire after a specified number of days, or they can be permanent.
     """
     try:
         # Calculate expiry date if provided
         expires_at = None
-        if api_key_data.expires_at:
+        if hasattr(api_key_data, "expires_at") and api_key_data.expires_at:
             expires_at = api_key_data.expires_at
-        elif getattr(api_key_data, "expires_in_days", None):
+        elif hasattr(api_key_data, "expires_in_days") and api_key_data.expires_in_days:
             expires_at = datetime.utcnow() + timedelta(days=api_key_data.expires_in_days)
         
         # Create the API key
@@ -30,7 +34,14 @@ async def create_api_token(
             user_id=current_user["id"],
             name=api_key_data.name,
             expires_at=expires_at.isoformat() if expires_at else None,
+            description=api_key_data.description if hasattr(api_key_data, "description") else None,
         )
+        
+        # Set CORS headers to allow the frontend to access this endpoint
+        if response:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-Key"
         
         return ApiKeyResponse(
             id=new_api_key["id"],
@@ -38,6 +49,7 @@ async def create_api_token(
             key=new_api_key["key"],
             created_at=new_api_key["created_at"],
             expires_at=new_api_key.get("expires_at"),
+            description=new_api_key.get("description"),
         )
     except Exception as e:
         raise HTTPException(
@@ -65,6 +77,7 @@ async def list_api_tokens(
                 key=api_key["key"],
                 created_at=api_key["created_at"],
                 expires_at=api_key.get("expires_at"),
+                description=api_key.get("description"),
             )
             for api_key in api_keys
         ]
