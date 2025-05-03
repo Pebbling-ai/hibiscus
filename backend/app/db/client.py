@@ -4,7 +4,7 @@ import secrets
 import uuid
 from typing import Dict, List, Optional, Any, Union, Tuple
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -15,16 +15,17 @@ AGENTS_TABLE = "agents"
 USERS_TABLE = "users"
 API_KEYS_TABLE = "api_keys"
 FEDERATED_REGISTRIES_TABLE = "federated_registries"
+AGENT_HEALTH_TABLE = "agent_health"
 
 # Initialize Supabase client
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
+superbase_url = os.getenv("SUPERBASE_URL")
+superbase_key = os.getenv("SUPERBASE_KEY")
 
-if not supabase_url or not supabase_key:
-    print("Warning: SUPABASE_URL and SUPABASE_KEY not set. Using mock database for development.")
+if not superbase_url or not superbase_key:
+    print("Warning: SUPERBASE_URL and SUPERBASE_KEY not set. Using mock database for development.")
     supabase = None
 else:
-    supabase: Client = create_client(supabase_url, supabase_key)
+    supabase: Client = create_client(superbase_url, superbase_key)
 
 # Mock data for development without a Supabase connection
 MOCK_DB = {
@@ -89,7 +90,8 @@ MOCK_DB = {
             "created_at": "2023-03-10T09:15:00",
             "last_synced_at": "2023-05-01T14:30:00"
         }
-    ]
+    ],
+    AGENT_HEALTH_TABLE: []
 }
 
 
@@ -109,7 +111,7 @@ class Database:
         return query_fn(supabase)
     
     @staticmethod
-    async def list_agents(limit: int = 100, offset: int = 0, search_term: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_agents(limit: int = 100, offset: int = 0, search_term: Optional[str] = None, is_team: Optional[bool] = None) -> List[Dict[str, Any]]:
         """
         List all agents with optional filtering and deserialize JSON fields.
         """
@@ -132,6 +134,10 @@ class Database:
                         filtered_agents.append(agent)
                 agents = filtered_agents
             
+            # Apply team filter if provided
+            if is_team is not None:
+                agents = [agent for agent in agents if agent.get("is_team", False) == is_team]
+            
             # Apply pagination
             paginated_agents = agents[offset:offset+limit]
             
@@ -145,6 +151,10 @@ class Database:
         if search_term:
             search_term = search_term.lower()
             query = query.or_(f"name.ilike.%{search_term}%,description.ilike.%{search_term}%,documentation.ilike.%{search_term}%")
+        
+        # Apply team filter if provided
+        if is_team is not None:
+            query = query.eq("is_team", is_team)
         
         # Apply pagination
         query = query.range(offset, offset + limit - 1)
@@ -408,21 +418,57 @@ class Database:
         return response.data[0]
 
     @staticmethod
-    async def list_api_keys(user_id: str) -> List[Dict[str, Any]]:
+    async def list_api_keys(user_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        List all API keys for a user.
+        List all API keys for a user with pagination.
         """
         if supabase is None:
             # Use mock database
-            return [key for key in MOCK_DB.get(API_KEYS_TABLE, []) if key.get("user_id") == user_id]
+            api_keys = [
+                key for key in MOCK_DB.get(API_KEYS_TABLE, [])
+                if key.get("user_id") == user_id
+            ]
+            
+            # Apply pagination
+            paginated_keys = api_keys[offset:offset+limit]
+            
+            return paginated_keys
         
         # Use Supabase
-        response = supabase.table(API_KEYS_TABLE).select("*").eq("user_id", user_id).execute()
+        query = supabase.table(API_KEYS_TABLE).select("*").eq("user_id", user_id)
+        
+        # Apply pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        response = query.execute()
         
         if hasattr(response, "error") and response.error:
             raise Exception(f"Error fetching API keys: {response.error.message}")
         
         return response.data
+
+    @staticmethod
+    async def count_api_keys(user_id: str) -> int:
+        """
+        Count the total number of API keys for a user.
+        """
+        if supabase is None:
+            # Use mock database
+            api_keys = [
+                key for key in MOCK_DB.get(API_KEYS_TABLE, [])
+                if key.get("user_id") == user_id
+            ]
+            return len(api_keys)
+        
+        # Use Supabase
+        query = supabase.table(API_KEYS_TABLE).select("id", count="exact").eq("user_id", user_id)
+        
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting API keys: {response.error.message}")
+        
+        return response.count
 
     @staticmethod
     async def delete_api_key(key_id: str, user_id: str) -> bool:
@@ -451,21 +497,51 @@ class Database:
         return len(response.data) > 0
 
     @staticmethod
-    async def list_federated_registries() -> List[Dict[str, Any]]:
+    async def list_federated_registries(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        List all federated registries.
+        List all federated registries with pagination.
         """
         if supabase is None:
             # Use mock database
-            return MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
+            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
+            
+            # Apply pagination
+            paginated_registries = registries[offset:offset+limit]
+            
+            return paginated_registries
         
         # Use Supabase
-        response = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*").execute()
+        query = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*")
+        
+        # Apply pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        response = query.execute()
         
         if hasattr(response, "error") and response.error:
             raise Exception(f"Error fetching federated registries: {response.error.message}")
         
         return response.data
+
+    @staticmethod
+    async def count_federated_registries() -> int:
+        """
+        Count the total number of federated registries.
+        """
+        if supabase is None:
+            # Use mock database
+            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
+            return len(registries)
+        
+        # Use Supabase
+        query = supabase.table(FEDERATED_REGISTRIES_TABLE).select("id", count="exact")
+        
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting federated registries: {response.error.message}")
+        
+        return response.count
 
     @staticmethod
     async def add_federated_registry(registry_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -493,3 +569,252 @@ class Database:
             raise Exception(f"Error creating federated registry: {response.error.message}")
         
         return response.data[0]
+
+    @staticmethod
+    async def record_agent_health(health_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Record a health check ping from an agent.
+        """
+        # Add timestamps
+        now = datetime.utcnow()
+        health_data["last_ping_at"] = now.isoformat()
+        health_data["expires_at"] = (now + timedelta(days=1)).isoformat()
+        
+        if supabase is None:
+            # Use mock database
+            health_id = str(uuid.uuid4())
+            
+            # Check if we already have a record for this agent+server combination
+            for i, record in enumerate(MOCK_DB.get(AGENT_HEALTH_TABLE, [])):
+                if (record.get("agent_id") == health_data["agent_id"] and 
+                    record.get("server_id") == health_data["server_id"]):
+                    # Update existing record
+                    MOCK_DB[AGENT_HEALTH_TABLE][i].update(health_data)
+                    return MOCK_DB[AGENT_HEALTH_TABLE][i]
+            
+            # No existing record, create new one
+            health_data["id"] = health_id
+            MOCK_DB.setdefault(AGENT_HEALTH_TABLE, []).append(health_data)
+            return health_data
+        
+        # Use Supabase
+        # First try to update existing record
+        update_query = (
+            supabase.table(AGENT_HEALTH_TABLE)
+            .update(health_data)
+            .eq("agent_id", health_data["agent_id"])
+            .eq("server_id", health_data["server_id"])
+            .execute()
+        )
+        
+        if hasattr(update_query, "error") and update_query.error:
+            raise Exception(f"Error updating agent health: {update_query.error.message}")
+        
+        # If we updated a record, return it
+        if update_query.data and len(update_query.data) > 0:
+            return update_query.data[0]
+        
+        # Otherwise insert a new record
+        insert_query = supabase.table(AGENT_HEALTH_TABLE).insert(health_data).execute()
+        
+        if hasattr(insert_query, "error") and insert_query.error:
+            raise Exception(f"Error inserting agent health: {insert_query.error.message}")
+        
+        return insert_query.data[0]
+    
+    @staticmethod
+    async def get_agent_health(agent_id: str) -> List[Dict[str, Any]]:
+        """
+        Get the health status for a specific agent across all servers.
+        """
+        if supabase is None:
+            # Use mock database
+            return [
+                record for record in MOCK_DB.get(AGENT_HEALTH_TABLE, [])
+                if record.get("agent_id") == agent_id
+            ]
+        
+        # Use Supabase
+        query = (
+            supabase.table(AGENT_HEALTH_TABLE)
+            .select("*")
+            .eq("agent_id", agent_id)
+            .execute()
+        )
+        
+        if hasattr(query, "error") and query.error:
+            raise Exception(f"Error fetching agent health: {query.error.message}")
+        
+        return query.data
+    
+    @staticmethod
+    async def list_agent_health(
+        limit: int = 100, 
+        offset: int = 0,
+        server_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        List health status for all agents, optionally filtered by server.
+        """
+        if supabase is None:
+            # Use mock database
+            records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
+            
+            # Filter by server_id if provided
+            if server_id:
+                records = [r for r in records if r.get("server_id") == server_id]
+            
+            # Apply pagination
+            return records[offset:offset+limit]
+        
+        # Use Supabase
+        query = supabase.table(AGENT_HEALTH_TABLE).select("*")
+        
+        # Filter by server_id if provided
+        if server_id:
+            query = query.eq("server_id", server_id)
+        
+        # Apply pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error listing agent health: {response.error.message}")
+        
+        return response.data
+    
+    @staticmethod
+    async def count_agent_health(server_id: Optional[str] = None) -> int:
+        """
+        Count the total number of agent health records.
+        """
+        if supabase is None:
+            # Use mock database
+            records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
+            
+            # Filter by server_id if provided
+            if server_id:
+                records = [r for r in records if r.get("server_id") == server_id]
+            
+            return len(records)
+        
+        # Use Supabase
+        query = supabase.table(AGENT_HEALTH_TABLE).select("id", count="exact")
+        
+        # Filter by server_id if provided
+        if server_id:
+            query = query.eq("server_id", server_id)
+        
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting agent health: {response.error.message}")
+        
+        return response.count
+    
+    @staticmethod
+    async def get_agent_health_summary() -> List[Dict[str, Any]]:
+        """
+        Get a summary of agent health status grouped by agent.
+        This requires joining with the agents table to get agent names.
+        """
+        if supabase is None:
+            # Use mock database
+            summary = {}
+            
+            # Get all health records
+            health_records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            
+            # Group by agent_id
+            for record in health_records:
+                agent_id = record.get("agent_id")
+                if agent_id not in summary:
+                    # Find agent name
+                    agent_name = "Unknown"
+                    for agent in agents:
+                        if agent.get("id") == agent_id:
+                            agent_name = agent.get("name", "Unknown")
+                            break
+                    
+                    summary[agent_id] = {
+                        "agent_id": agent_id,
+                        "agent_name": agent_name,
+                        "servers": [],
+                        "status": "inactive",
+                        "last_ping_at": None
+                    }
+                
+                # Add server info
+                server_info = {
+                    "server_id": record.get("server_id"),
+                    "status": record.get("status"),
+                    "last_ping_at": record.get("last_ping_at"),
+                    "metadata": record.get("metadata", {})
+                }
+                summary[agent_id]["servers"].append(server_info)
+                
+                # Update summary status and last_ping_at
+                if record.get("status") == "active":
+                    summary[agent_id]["status"] = "active"
+                
+                if (summary[agent_id]["last_ping_at"] is None or
+                    record.get("last_ping_at") > summary[agent_id]["last_ping_at"]):
+                    summary[agent_id]["last_ping_at"] = record.get("last_ping_at")
+            
+            return list(summary.values())
+        
+        # For Supabase, we need a more sophisticated query
+        # This requires a join between agent_health and agents
+        # Since this functionality is complex in Supabase, we'll fetch data and process in Python
+        
+        # Get all health records
+        health_query = supabase.table(AGENT_HEALTH_TABLE).select("*").execute()
+        
+        if hasattr(health_query, "error") and health_query.error:
+            raise Exception(f"Error getting health records: {health_query.error.message}")
+        
+        health_records = health_query.data
+        
+        # Get all agents for mapping IDs to names
+        agents_query = supabase.table(AGENTS_TABLE).select("id,name").execute()
+        
+        if hasattr(agents_query, "error") and agents_query.error:
+            raise Exception(f"Error getting agents: {agents_query.error.message}")
+        
+        # Create a mapping of agent_id to name
+        agent_names = {agent["id"]: agent["name"] for agent in agents_query.data}
+        
+        # Group by agent_id
+        summary = {}
+        for record in health_records:
+            agent_id = record.get("agent_id")
+            if agent_id not in summary:
+                summary[agent_id] = {
+                    "agent_id": agent_id,
+                    "agent_name": agent_names.get(agent_id, "Unknown"),
+                    "servers": [],
+                    "status": "inactive",
+                    "last_ping_at": None
+                }
+            
+            # Add server info
+            server_info = {
+                "server_id": record.get("server_id"),
+                "status": record.get("status"),
+                "last_ping_at": record.get("last_ping_at"),
+                "metadata": record.get("metadata", {})
+            }
+            summary[agent_id]["servers"].append(server_info)
+            
+            # Update summary status and last_ping_at
+            if record.get("status") == "active":
+                summary[agent_id]["status"] = "active"
+            
+            last_ping = record.get("last_ping_at")
+            if (summary[agent_id]["last_ping_at"] is None or
+                (last_ping and last_ping > summary[agent_id]["last_ping_at"])):
+                summary[agent_id]["last_ping_at"] = last_ping
+        
+        return list(summary.values())

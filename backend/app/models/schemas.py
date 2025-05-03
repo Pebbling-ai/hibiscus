@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -75,6 +75,9 @@ class AgentBase(BaseModel):
     logo_url: Optional[str] = None
     is_federated: bool = False
     federation_source: Optional[str] = None
+    is_team: bool = False
+    members: Optional[List[str]] = None
+    mode: Optional[Literal["collaborate", "coordinate", "route"]] = None
 
 class AgentCreate(AgentBase):
     pass
@@ -95,6 +98,9 @@ class AgentUpdate(BaseModel):
     api_endpoint: Optional[str] = None
     website_url: Optional[str] = None
     logo_url: Optional[str] = None
+    is_team: Optional[bool] = None
+    members: Optional[List[str]] = None
+    mode: Optional[Literal["collaborate", "coordinate", "route"]] = None
 
 class Agent(AgentBase):
     id: str
@@ -104,6 +110,31 @@ class Agent(AgentBase):
 
     class Config:
         from_attributes = True
+
+# Agent Health Models
+class AgentHealthBase(BaseModel):
+    agent_id: str
+    server_id: str
+    status: str = "active"
+    metadata: Optional[Dict[str, Any]] = None
+
+class AgentHealthCreate(AgentHealthBase):
+    pass
+
+class AgentHealth(AgentHealthBase):
+    id: str
+    last_ping_at: datetime
+    expires_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AgentHealthSummary(BaseModel):
+    agent_id: str
+    agent_name: str
+    servers: List[Dict[str, Any]]
+    status: str
+    last_ping_at: datetime
 
 # Federated Registry Models
 class FederatedRegistryBase(BaseModel):

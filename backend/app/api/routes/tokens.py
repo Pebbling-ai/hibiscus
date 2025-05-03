@@ -1,10 +1,11 @@
 from typing import List, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
+from math import ceil
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
-from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse
+from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse, PaginatedResponse
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -58,29 +59,42 @@ async def create_api_token(
         )
 
 
-@router.get("/tokens", response_model=List[ApiKeyResponse])
+@router.get("/tokens", response_model=PaginatedResponse[ApiKeyResponse])
 async def list_api_tokens(
+    page: int = Query(1, description="Page number", ge=1),
+    size: int = Query(20, description="Page size", ge=1, le=100),
     current_user = Depends(get_current_user_from_api_key),
 ):
     """
-    List all API tokens for the authenticated user.
+    List all API tokens for the authenticated user (paginated).
     """
     try:
-        # Get the API keys for the user
-        api_keys = await Database.list_api_keys(user_id=current_user["id"])
+        # Calculate offset from page and size
+        offset = (page - 1) * size
         
-        # Convert to response format
-        return [
-            ApiKeyResponse(
-                id=api_key["id"],
-                name=api_key["name"],
-                key=api_key["key"],
-                created_at=api_key["created_at"],
-                expires_at=api_key.get("expires_at"),
-                description=api_key.get("description"),
-            )
-            for api_key in api_keys
-        ]
+        # Get the count first
+        total_count = await Database.count_api_keys(user_id=current_user["id"])
+        
+        # Then get the paginated results
+        tokens = await Database.list_api_keys(
+            user_id=current_user["id"],
+            limit=size,
+            offset=offset
+        )
+        
+        # Calculate pagination metadata
+        total_pages = ceil(total_count / size)
+        has_more = page < total_pages
+        
+        # Return paginated response
+        return PaginatedResponse(
+            items=tokens,
+            total=total_count,
+            page=page,
+            size=size,
+            pages=total_pages,
+            has_more=has_more
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

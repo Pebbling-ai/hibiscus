@@ -60,6 +60,9 @@ SUPABASE_SCHEMA = {
                 {"name": "is_federated", "type": "boolean", "notNull": True, "default": False},
                 {"name": "federation_source", "type": "text"},
                 {"name": "registry_id", "type": "uuid", "references": {"table": "federated_registries", "column": "id"}},
+                {"name": "is_team", "type": "boolean", "default": False},
+                {"name": "members", "type": "uuid[]"},
+                {"name": "mode", "type": "text", "check": "mode IN ('collaborate', 'coordinate', 'route')"},
                 {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
                 {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
             ]
@@ -82,6 +85,17 @@ SUPABASE_SCHEMA = {
                 {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
                 {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
             ]
+        },
+        {
+            "name": "agent_health",
+            "columns": [
+                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
+                {"name": "agent_id", "type": "uuid", "notNull": True, "references": {"table": "agents", "column": "id"}},
+                {"name": "server_id", "type": "text", "notNull": True},
+                {"name": "status", "type": "text", "notNull": True, "default": "active"},
+                {"name": "metadata", "type": "jsonb"},
+                {"name": "last_ping_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"}
+            ]
         }
     ],
     "indexes": [
@@ -92,6 +106,8 @@ SUPABASE_SCHEMA = {
         {"table": "agents", "columns": ["did"], "method": "btree"},
         {"table": "api_keys", "columns": ["user_id"], "method": "btree"},
         {"table": "agent_verification", "columns": ["agent_id"], "method": "btree"},
+        {"table": "agent_health", "columns": ["agent_id"], "method": "btree"},
+        {"table": "agent_health", "columns": ["server_id"], "method": "btree"},
     ],
     "policies": [
         {
@@ -161,6 +177,20 @@ SUPABASE_SCHEMA = {
             "table": "agent_verification",
             "name": "agent_verification_update_policy",
             "definition": "UPDATE",
+            "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
+        },
+        {
+            "table": "agent_health",
+            "name": "agent_health_select_policy",
+            "definition": "SELECT",
+            "using": "TRUE",
+            "check": "TRUE"
+        },
+        {
+            "table": "agent_health",
+            "name": "agent_health_insert_policy",
+            "definition": "INSERT",
             "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
             "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
         }

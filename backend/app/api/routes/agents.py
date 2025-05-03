@@ -11,6 +11,7 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 @router.get("/", response_model=List[Agent])
 async def list_agents(
     search: Optional[str] = Query(None, description="Search term to filter agents by name, description, or documentation"),
+    is_team: Optional[bool] = Query(None, description="Filter agents by team status"),
     limit: int = Query(100, description="Maximum number of agents to return", ge=1, le=1000),
     offset: int = Query(0, description="Number of agents to skip", ge=0),
 ):
@@ -18,6 +19,7 @@ async def list_agents(
     try:
         agents = await Database.list_agents(
             search_term=search,
+            is_team=is_team,
             limit=limit,
             offset=offset
         )
@@ -55,6 +57,20 @@ async def create_agent(
     agent_data["federation_source"] = None
     agent_data["user_id"] = current_user["id"]
     
+    # Validate team members if this is a team
+    if agent_data.get("is_team") and agent_data.get("members"):
+        invalid_members = []
+        for member_id in agent_data["members"]:
+            member = await Database.get_agent(member_id)
+            if not member:
+                invalid_members.append(member_id)
+        
+        if invalid_members:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid member IDs: {', '.join(invalid_members)}",
+            )
+    
     # Create the agent
     try:
         created_agent = await Database.create_agent(agent_data)
@@ -64,6 +80,7 @@ async def create_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
 
 @router.patch("/{agent_id}", response_model=Agent)
 async def update_agent(
@@ -91,6 +108,20 @@ async def update_agent(
         
         # Filter out None values to only update provided fields
         update_data = {k: v for k, v in agent_update.dict().items() if v is not None}
+        
+        # Validate team members if this is a team and members are being updated
+        if update_data.get("members"):
+            invalid_members = []
+            for member_id in update_data["members"]:
+                member = await Database.get_agent(member_id)
+                if not member:
+                    invalid_members.append(member_id)
+            
+            if invalid_members:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid member IDs: {', '.join(invalid_members)}",
+                )
         
         # Update the agent
         updated_agent = await Database.update_agent(agent_id, update_data)
