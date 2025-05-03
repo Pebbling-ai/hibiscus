@@ -4,14 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from app.api.routes import agents, federated_registries, tokens
+from app.api.routes import agents, federated_registries, tokens, health
 from app.core.auth import API_KEY_HEADER
 
 # Load environment variables
 load_dotenv()
 
 # Application settings
-APP_TITLE = "Hibiscus Agent Registry API"
+APP_TITLE = "🌺Hibiscus Agent Registry API"
 APP_DESCRIPTION = "Backend API for Hibiscus Agent Registry"
 APP_VERSION = "0.1.0"
 
@@ -42,6 +42,7 @@ def create_application() -> FastAPI:
     app.include_router(agents.router)
     app.include_router(federated_registries.router)
     app.include_router(tokens.router)
+    app.include_router(health.router)
     
     # Error handling
     @app.exception_handler(Exception)
@@ -59,7 +60,7 @@ def create_application() -> FastAPI:
     async def root():
         return {
             "success": True,
-            "message": "Welcome to Hibiscus Agent Registry API",
+            "message": "Welcome to 🌺 Hibiscus Agent Registry API",
             "data": {
                 "version": APP_VERSION,
                 "documentation": "/docs",

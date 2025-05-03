@@ -1,29 +1,55 @@
 from typing import List, Optional
+import math
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import JSONResponse
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
-from app.models.schemas import Agent, AgentCreate, AgentUpdate, ApiResponse
+from app.models.schemas import Agent, AgentCreate, AgentUpdate, PaginatedResponse, PaginationMetadata
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
-@router.get("/", response_model=List[Agent])
+@router.get("/", response_model=PaginatedResponse[Agent])
 async def list_agents(
     search: Optional[str] = Query(None, description="Search term to filter agents by name, description, or documentation"),
     is_team: Optional[bool] = Query(None, description="Filter agents by team status"),
-    limit: int = Query(100, description="Maximum number of agents to return", ge=1, le=1000),
-    offset: int = Query(0, description="Number of agents to skip", ge=0),
+    page: int = Query(1, description="Page number", ge=1),
+    page_size: int = Query(20, description="Items per page", ge=1, le=100)
 ):
-    """List all agents with optional filtering."""
+    """List agents with pagination and optional filtering."""
     try:
+        # Calculate offset
+        offset = (page - 1) * page_size
+        
+        # Get agents for current page
         agents = await Database.list_agents(
             search_term=search,
             is_team=is_team,
-            limit=limit,
+            limit=page_size,
             offset=offset
         )
-        return agents
+        
+        # Get total count for pagination metadata
+        total_count = await Database.count_agents(
+            registry_id=None if not is_team else is_team
+        )
+        
+        # Calculate total pages
+        total_pages = math.ceil(total_count / page_size)
+        
+        # Construct paginated response
+        response = {
+            "items": agents,
+            "metadata": {
+                "total": total_count,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages
+            }
+        }
+        
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -48,38 +74,69 @@ async def create_agent(
     agent: AgentCreate,
     current_user = Depends(get_current_user_from_api_key),
 ):
-    """
-    Create a new agent following the Agent Communication Protocol (requires authentication).
-    """
-    # Prepare agent data
+    """Create a new agent with DID verification and deployment tracking."""
+    from app.utils.did_utils import DIDManager, MltsProtocolHandler
+    
+    # Initialize data structures
     agent_data = agent.dict()
-    agent_data["is_federated"] = False
-    agent_data["federation_source"] = None
-    agent_data["user_id"] = current_user["id"]
+    agent_data.update({"is_federated": False, "federation_source": None, 
+                      "registry_id": None, "user_id": current_user["id"]})
+    verification_data = {}
+    response_data = {}
+    
+    # Extract security credentials to verification table
+    for field in ["did", "did_document", "public_key"]:
+        if field in agent_data:
+            verification_data[field] = agent_data.pop(field)
+    
+    # Handle DID generation
+    if not verification_data.get("did") and not verification_data.get("public_key"):
+        # Generate new keypair
+        pub_key, priv_key = MltsProtocolHandler().generate_keys()
+        verification_data["public_key"] = pub_key
+        response_data["private_key"] = priv_key
+    
+    # Ensure we have a DID
+    if not verification_data.get("did") and verification_data.get("public_key"):
+        verification_data["did"] = DIDManager.generate_did(
+            public_key=verification_data["public_key"]
+        )
+    
+    # Ensure we have a DID document
+    if verification_data.get("did") and verification_data.get("public_key") and not verification_data.get("did_document"):
+        verification_data["did_document"] = DIDManager.generate_did_document(
+            verification_data["did"], verification_data["public_key"], verification_method="mlts"
+        )
     
     # Validate team members if this is a team
     if agent_data.get("is_team") and agent_data.get("members"):
-        invalid_members = []
-        for member_id in agent_data["members"]:
-            member = await Database.get_agent(member_id)
-            if not member:
-                invalid_members.append(member_id)
-        
-        if invalid_members:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid member IDs: {', '.join(invalid_members)}",
-            )
+        invalid = [mid for mid in agent_data["members"] if not await Database.get_agent(mid)]
+        if invalid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                               detail=f"Invalid member IDs: {', '.join(invalid)}")
     
-    # Create the agent
     try:
+        # Create agent record
         created_agent = await Database.create_agent(agent_data)
+        
+        # Store verification data if complete
+        if verification_data.get("did") and verification_data.get("public_key"):
+            verification_data.update({
+                "agent_id": created_agent["id"],
+                "verification_method": "mlts",
+                "key_type": "rsa"
+            })
+            await Database.create_agent_verification(verification_data)
+        
+        # Return response with private key if generated
+        if "private_key" in response_data:
+            agent_dict = created_agent.dict() if hasattr(created_agent, "dict") else created_agent
+            return JSONResponse(content={**agent_dict, **response_data})
+        
         return created_agent
+        
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.patch("/{agent_id}", response_model=Agent)

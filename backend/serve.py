@@ -32,7 +32,7 @@ def serve_app(
     panel = Panel(
         f"[bold green]API URL:[/bold green] {api_url}\n"
         f"[bold green]API Docs:[/bold green] [link={docs_url}]{docs_url}[/link]",
-        title="Hibiscus Agent Registry API",
+        title="🌺 Hibiscus Agent Registry API",
         expand=False,
         border_style="cyan",
         box=box.HEAVY,

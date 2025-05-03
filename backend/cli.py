@@ -9,7 +9,7 @@ def start(
     port: int = typer.Option(8000, help="Port to bind the server to"),
     reload: bool = typer.Option(False, help="Enable auto-reload")
 ):
-    """Start the Hibiscus Agent Registry API server."""
+    """Start the 🌺 Hibiscus Agent Registry API server."""
     serve_app(
         app="app.main:app",
         host=host,

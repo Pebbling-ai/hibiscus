@@ -4,6 +4,7 @@ Utilities for working with Decentralized Identifiers (DIDs) and MLTS protocol.
 import uuid
 import json
 import logging
+import hashlib
 from typing import Dict, Any, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -17,21 +18,47 @@ class DIDManager:
     DID_METHOD = "hibiscus"  # Custom DID method for this application
     
     @classmethod
-    def generate_did(cls, identifier: Optional[str] = None) -> str:
+    def generate_did(cls, public_key: Optional[str] = None) -> str:
         """
         Generate a new DID using the hibiscus method.
         
         Args:
-            identifier: Optional identifier to use (defaults to UUID)
+            public_key: Optional public key to incorporate into the DID (PEM format string)
             
         Returns:
             Decentralized Identifier string
         """
-        if not identifier:
+        # If no public key is provided, generate a random identifier
+        if not public_key:
             identifier = str(uuid.uuid4())
+            return f"did:{cls.DID_METHOD}:{identifier}"
             
-        # Format: did:hibiscus:identifier
-        return f"did:{cls.DID_METHOD}:{identifier}"
+        # Process the public key to create a deterministic identifier
+        try:
+            # Handle PEM formatted string
+            # Remove headers, footers, and whitespace
+            if "-----BEGIN" in public_key:
+                cleaned_key = ''.join(
+                    line for line in public_key.strip().split('\n') 
+                    if not line.startswith('-----') and not line.endswith('-----')
+                ).replace(" ", "")
+            else:
+                cleaned_key = public_key.strip().replace(" ", "")
+                
+            # Create a hash of the public key
+            key_hash = hashlib.sha256(cleaned_key.encode('utf-8')).hexdigest()
+            
+            # Use the first 32 chars of the hash as the identifier
+            base_id = key_hash[:32]
+            
+            # Final DID
+            return f"did:{cls.DID_METHOD}:{base_id}"
+            
+        except Exception as e:
+            logger.error(f"Error generating DID from public key: {str(e)}")
+            # Fallback to UUID if there's any issue
+            identifier = str(uuid.uuid4())
+            return f"did:{cls.DID_METHOD}:{identifier}"
     
     @classmethod
     def parse_did(cls, did: str) -> Dict[str, str]:
@@ -93,7 +120,7 @@ class DIDManager:
                 {
                     "id": f"{did}#agent",
                     "type": "HibiscusAgent",
-                    "serviceEndpoint": "https://hibiscus.ai/agent-discovery"
+                    "serviceEndpoint": "https://pebbling.ai/agent-discovery"
                 }
             ]
         }

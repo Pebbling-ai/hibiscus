@@ -1,11 +1,11 @@
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from math import ceil
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
-from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse, PaginatedResponse
+from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse, PaginatedResponse, PaginationMetadata
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -28,7 +28,7 @@ async def create_api_token(
         if hasattr(api_key_data, "expires_at") and api_key_data.expires_at:
             expires_at = api_key_data.expires_at
         elif hasattr(api_key_data, "expires_in_days") and api_key_data.expires_in_days:
-            expires_at = datetime.utcnow() + timedelta(days=api_key_data.expires_in_days)
+            expires_at = datetime.now(timezone.utc) + timedelta(days=api_key_data.expires_in_days)
         
         # Create the API key
         new_api_key = await Database.create_api_key(
@@ -84,16 +84,16 @@ async def list_api_tokens(
         
         # Calculate pagination metadata
         total_pages = ceil(total_count / size)
-        has_more = page < total_pages
         
-        # Return paginated response
+        # Return paginated response with updated structure
         return PaginatedResponse(
             items=tokens,
-            total=total_count,
-            page=page,
-            size=size,
-            pages=total_pages,
-            has_more=has_more
+            metadata=PaginationMetadata(
+                total=total_count,
+                page=page,
+                page_size=size,
+                total_pages=total_pages
+            )
         )
     except Exception as e:
         raise HTTPException(

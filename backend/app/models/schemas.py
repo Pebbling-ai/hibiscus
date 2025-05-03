@@ -56,6 +56,9 @@ class AgentMetadata(BaseModel):
     programming_language: Optional[str] = None  # Python, JavaScript, etc.
     license: Optional[str] = None  # SPDX license ID
     supported_languages: Optional[List[str]] = None  # ISO 639-1 codes
+    deployment_type: Optional[str] = None  # 'fly', 'tunnel', 'docker', 'serverless', etc.
+    deployment_url: Optional[str] = None  # URL of deployment if available
+    deployment_region: Optional[str] = None  # Region of deployment if applicable
 
 class AgentBase(BaseModel):
     name: str  # RFC 1123 DNS-label compatible
@@ -75,9 +78,11 @@ class AgentBase(BaseModel):
     logo_url: Optional[str] = None
     is_federated: bool = False
     federation_source: Optional[str] = None
+    registry_id: Optional[str] = None  # UUID of the federated registry
     is_team: bool = False
     members: Optional[List[str]] = None
     mode: Optional[Literal["collaborate", "coordinate", "route"]] = None
+
 
 class AgentCreate(AgentBase):
     pass
@@ -107,6 +112,10 @@ class Agent(AgentBase):
     user_id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # Include verification data from agent_verification table
+    did: Optional[str] = None
+    public_key: Optional[str] = None
+    did_document: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -158,3 +167,17 @@ class ApiResponse(BaseModel):
     success: bool
     message: Optional[str] = None
     data: Optional[Any] = None
+
+# Generic type for pagination
+T = TypeVar('T')
+
+# Pagination Models
+class PaginationMetadata(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    items: List[T]
+    metadata: PaginationMetadata

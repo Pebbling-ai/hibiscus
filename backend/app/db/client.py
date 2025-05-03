@@ -4,7 +4,7 @@ import secrets
 import uuid
 from typing import Dict, List, Optional, Any, Union, Tuple
 from supabase import create_client, Client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -16,10 +16,11 @@ USERS_TABLE = "users"
 API_KEYS_TABLE = "api_keys"
 FEDERATED_REGISTRIES_TABLE = "federated_registries"
 AGENT_HEALTH_TABLE = "agent_health"
+AGENT_VERIFICATION_TABLE = "agent_verification"
 
 # Initialize Supabase client
 superbase_url = os.getenv("SUPERBASE_URL")
-superbase_key = os.getenv("SUPERBASE_KEY")
+superbase_key = os.getenv("SUPERBASE_SERVICE_ROLE_KEY", os.getenv("SUPERBASE_KEY"))
 
 if not superbase_url or not superbase_key:
     print("Warning: SUPERBASE_URL and SUPERBASE_KEY not set. Using mock database for development.")
@@ -91,7 +92,8 @@ MOCK_DB = {
             "last_synced_at": "2023-05-01T14:30:00"
         }
     ],
-    AGENT_HEALTH_TABLE: []
+    AGENT_HEALTH_TABLE: [],
+    AGENT_VERIFICATION_TABLE: []
 }
 
 
@@ -114,36 +116,8 @@ class Database:
     async def list_agents(limit: int = 100, offset: int = 0, search_term: Optional[str] = None, is_team: Optional[bool] = None) -> List[Dict[str, Any]]:
         """
         List all agents with optional filtering and deserialize JSON fields.
+        Include verification data from agent_verification table.
         """
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            
-            # Apply search filter if provided
-            if search_term:
-                search_term = search_term.lower()
-                filtered_agents = []
-                for agent in agents:
-                    if (
-                        search_term in agent.get("name", "").lower() or
-                        search_term in agent.get("description", "").lower() or
-                        any(search_term in tag.lower() for tag in agent.get("tags", []) if isinstance(tag, str)) or
-                        search_term in agent.get("documentation", "").lower() or
-                        any(search_term in domain.lower() for domain in agent.get("domains", []) if isinstance(domain, str))
-                    ):
-                        filtered_agents.append(agent)
-                agents = filtered_agents
-            
-            # Apply team filter if provided
-            if is_team is not None:
-                agents = [agent for agent in agents if agent.get("is_team", False) == is_team]
-            
-            # Apply pagination
-            paginated_agents = agents[offset:offset+limit]
-            
-            # Parse JSON fields
-            return [Database._parse_agent_json_fields(agent) for agent in paginated_agents]
-        
         # Use Supabase
         query = supabase.table(AGENTS_TABLE).select("*")
         
@@ -164,22 +138,41 @@ class Database:
         if hasattr(response, "error") and response.error:
             raise Exception(f"Error fetching agents: {response.error.message}")
         
-        return response.data
+        # Parse JSON fields for each agent
+        parsed_agents = []
+        for agent in response.data:
+            parsed_agent = Database._parse_agent_json_fields(agent)
+            
+            # Fetch verification data for this agent
+            verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent["id"]).execute()
+            
+            if not hasattr(verification_query, "error") and verification_query.data:
+                verification = verification_query.data[0]
+                
+                # Add verification fields to agent data
+                parsed_agent["did"] = verification.get("did")
+                parsed_agent["public_key"] = verification.get("public_key")
+                
+                # Parse did_document if it exists
+                if verification.get("did_document"):
+                    if isinstance(verification["did_document"], str):
+                        try:
+                            parsed_agent["did_document"] = json.loads(verification["did_document"])
+                        except json.JSONDecodeError:
+                            parsed_agent["did_document"] = verification["did_document"]
+                    else:
+                        parsed_agent["did_document"] = verification["did_document"]
+            
+            parsed_agents.append(parsed_agent)
+            
+        return parsed_agents
 
     @staticmethod
     async def get_agent(agent_id: str) -> Optional[Dict[str, Any]]:
         """
         Get agent by ID and deserialize JSON fields.
+        Include verification data from agent_verification table.
         """
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            for agent in agents:
-                if agent["id"] == agent_id:
-                    # Parse JSON fields that might be stored as strings
-                    return Database._parse_agent_json_fields(agent)
-            return None
-        
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).select("*").eq("id", agent_id).execute()
         
@@ -189,8 +182,30 @@ class Database:
         if not response.data:
             return None
         
-        # Parse any JSON fields that might be stored as strings
-        return Database._parse_agent_json_fields(response.data[0])
+        # Parse JSON fields
+        agent = Database._parse_agent_json_fields(response.data[0])
+        
+        # Fetch verification data for this agent
+        verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent_id).execute()
+        
+        if not hasattr(verification_query, "error") and verification_query.data:
+            verification = verification_query.data[0]
+            
+            # Add verification fields to agent data
+            agent["did"] = verification.get("did")
+            agent["public_key"] = verification.get("public_key")
+            
+            # Parse did_document if it exists
+            if verification.get("did_document"):
+                if isinstance(verification["did_document"], str):
+                    try:
+                        agent["did_document"] = json.loads(verification["did_document"])
+                    except json.JSONDecodeError:
+                        agent["did_document"] = verification["did_document"]
+                else:
+                    agent["did_document"] = verification["did_document"]
+        
+        return agent
 
     @staticmethod
     def _parse_agent_json_fields(agent: Dict[str, Any]) -> Dict[str, Any]:
@@ -230,7 +245,7 @@ class Database:
         - user_id: ID of the user creating the agent
         """
         agent_id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         
         # Handle json serialization for complex fields
         agent_data_copy = agent_data.copy()
@@ -247,11 +262,6 @@ class Database:
             "updated_at": now,
             **agent_data_copy
         }
-        
-        if supabase is None:
-            # Use mock database
-            MOCK_DB.setdefault(AGENTS_TABLE, []).append(agent)
-            return agent
         
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).insert(agent).execute()
@@ -317,36 +327,6 @@ class Database:
         """
         Validate an API key and return associated user data.
         """
-        if supabase is None:
-            # Use mock database
-            key_data = None
-            for key in MOCK_DB.get(API_KEYS_TABLE, []):
-                if key.get("key") == api_key:
-                    key_data = key
-                    break
-            
-            if not key_data:
-                return None
-            
-            # Check if the key is expired
-            if key_data.get("expires_at") and datetime.fromisoformat(key_data["expires_at"]) < datetime.utcnow():
-                return None
-            
-            # Get user data
-            user_data = None
-            for user in MOCK_DB.get(USERS_TABLE, []):
-                if user.get("id") == key_data.get("user_id"):
-                    user_data = user
-                    break
-            
-            if not user_data:
-                return None
-            
-            return {
-                "api_key": key_data,
-                "user": user_data,
-            }
-        
         # Use Supabase
         response = supabase.table(API_KEYS_TABLE).select("*").eq("key", api_key).execute()
         
@@ -359,7 +339,7 @@ class Database:
         key_data = response.data[0]
         
         # Check if the key is expired
-        if key_data.get("expires_at") and datetime.fromisoformat(key_data["expires_at"]) < datetime.utcnow():
+        if key_data.get("expires_at") and datetime.fromisoformat(key_data["expires_at"]) < datetime.now(timezone.utc):
             return None
         
         # Get user data
@@ -818,3 +798,245 @@ class Database:
                 summary[agent_id]["last_ping_at"] = last_ping
         
         return list(summary.values())
+
+    @staticmethod
+    async def get_federated_registry(registry_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a federated registry by ID.
+        """
+        if supabase is None:
+            # Use mock database
+            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
+            for registry in registries:
+                if registry["id"] == registry_id:
+                    return registry
+            return None
+        
+        # Use Supabase
+        response = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*").eq("id", registry_id).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error fetching federated registry: {response.error.message}")
+        
+        if not response.data:
+            return None
+        
+        return response.data[0]
+    
+    @staticmethod
+    async def get_agent_by_federation_id(federation_id: str, registry_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get an agent by its federation ID and registry ID.
+        """
+        if supabase is None:
+            # Use mock database
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            for agent in agents:
+                if (agent.get("federation_id") == federation_id and 
+                    agent.get("registry_id") == registry_id):
+                    return Database._parse_agent_json_fields(agent)
+            return None
+        
+        # Use Supabase
+        response = (supabase.table(AGENTS_TABLE)
+                   .select("*")
+                   .eq("federation_id", federation_id)
+                   .eq("registry_id", registry_id)
+                   .execute())
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error fetching agent by federation ID: {response.error.message}")
+        
+        if not response.data:
+            return None
+        
+        return Database._parse_agent_json_fields(response.data[0])
+    
+    @staticmethod
+    async def create_federated_agent(agent_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new federated agent.
+        """
+        # Ensure the agent is marked as federated
+        agent_data["is_federated"] = True
+        
+        # Store original ID as federation_id if present
+        if "id" in agent_data:
+            agent_data["federation_id"] = agent_data["id"]
+            # Generate new ID for our system
+            agent_data["id"] = str(uuid.uuid4())
+        else:
+            agent_data["id"] = str(uuid.uuid4())
+            agent_data["federation_id"] = agent_data["id"]
+        
+        if supabase is None:
+            # Use mock database
+            agent_data["created_at"] = datetime.now(timezone.utc).isoformat()
+            agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            MOCK_DB.setdefault(AGENTS_TABLE, []).append(agent_data)
+            return Database._parse_agent_json_fields(agent_data)
+        
+        # Use Supabase
+        # Add timestamps
+        agent_data["created_at"] = datetime.now(timezone.utc).isoformat()
+        agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        response = supabase.table(AGENTS_TABLE).insert(agent_data).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error creating federated agent: {response.error.message}")
+        
+        return Database._parse_agent_json_fields(response.data[0])
+    
+    @staticmethod
+    async def update_federated_agent(agent_id: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update a federated agent.
+        """
+        # Ensure the agent remains marked as federated
+        agent_data["is_federated"] = True
+        agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Don't overwrite our internal ID
+        if "id" in agent_data:
+            agent_data["federation_id"] = agent_data["id"]
+            del agent_data["id"]
+        
+        if supabase is None:
+            # Use mock database
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            for i, agent in enumerate(agents):
+                if agent["id"] == agent_id:
+                    agents[i] = {**agent, **agent_data}
+                    return Database._parse_agent_json_fields(agents[i])
+            raise Exception(f"Federated agent with ID {agent_id} not found")
+        
+        # Use Supabase
+        response = supabase.table(AGENTS_TABLE).update(agent_data).eq("id", agent_id).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error updating federated agent: {response.error.message}")
+        
+        if not response.data:
+            raise Exception(f"Federated agent with ID {agent_id} not found")
+        
+        return Database._parse_agent_json_fields(response.data[0])
+    
+    @staticmethod
+    async def update_federated_registry_sync_time(registry_id: str) -> Dict[str, Any]:
+        """
+        Update the last_synced_at timestamp for a federated registry.
+        """
+        sync_data = {
+            "last_synced_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if supabase is None:
+            # Use mock database
+            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
+            for i, registry in enumerate(registries):
+                if registry["id"] == registry_id:
+                    registries[i] = {**registry, **sync_data}
+                    return registries[i]
+            raise Exception(f"Federated registry with ID {registry_id} not found")
+        
+        # Use Supabase
+        response = supabase.table(FEDERATED_REGISTRIES_TABLE).update(sync_data).eq("id", registry_id).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error updating federation sync time: {response.error.message}")
+        
+        if not response.data:
+            raise Exception(f"Federated registry with ID {registry_id} not found")
+        
+        return response.data[0]
+    
+    @staticmethod
+    async def count_agents(registry_id: Optional[str] = None) -> int:
+        """
+        Count agents with optional filtering by registry_id.
+        """
+        if supabase is None:
+            # Use mock database
+            agents = MOCK_DB.get(AGENTS_TABLE, [])
+            
+            if registry_id:
+                agents = [agent for agent in agents if agent.get("registry_id") == registry_id]
+                
+            return len(agents)
+        
+        # Use Supabase
+        query = supabase.table(AGENTS_TABLE).select("count", count="exact")
+        
+        if registry_id:
+            query = query.eq("registry_id", registry_id)
+            
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting agents: {response.error.message}")
+        
+        return response.count
+
+    @staticmethod
+    async def create_agent_verification(verification_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new agent verification record.
+        
+        Args:
+            verification_data: Dictionary containing verification information:
+                - agent_id: ID of the agent
+                - did: Decentralized Identifier
+                - public_key: Public key in PEM format
+                - verification_method: Method used for verification (e.g., 'mlts')
+                - status: Verification status ('active', 'revoked', etc.)
+                - last_verified: Timestamp of last verification (if any)
+                
+        Returns:
+            Created verification record
+        """
+        # Add metadata
+        verification_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Create a copy to avoid modifying the original
+        verification_data_copy = verification_data.copy()
+        
+        # Convert JSON fields to strings for database storage
+        if "did_document" in verification_data_copy and verification_data_copy["did_document"] is not None:
+            verification_data_copy["did_document"] = json.dumps(verification_data_copy["did_document"])
+        
+        verification_record = {
+            "id": verification_id,
+            "created_at": now,
+            "updated_at": now,
+            **verification_data_copy
+        }
+        
+        # Use encryption for sensitive fields if configured
+        if "private_key" in verification_data and hasattr(Database, "key_encryption"):
+            # Encrypt private key if present
+            verification_record["private_key"] = Database.key_encryption.encrypt(
+                verification_data["private_key"]
+            )
+            # Store encryption metadata
+            verification_record["encryption_type"] = "AES-256-GCM"
+            verification_record["key_reference"] = "master_key"
+        
+        # Use Supabase
+        response = supabase.table(AGENT_VERIFICATION_TABLE).insert(verification_record).execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error creating agent verification: {response.error.message}")
+        
+        # Parse the response data to convert JSON strings back to objects
+        result = response.data[0] if response.data else verification_record
+        
+        # Parse the JSON fields back to objects
+        if isinstance(result.get("did_document"), str):
+            try:
+                result["did_document"] = json.loads(result["did_document"])
+            except (json.JSONDecodeError, TypeError):
+                pass  # Keep as string if parsing fails
+                
+        return result
