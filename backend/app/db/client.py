@@ -556,26 +556,8 @@ class Database:
         Record a health check ping from an agent.
         """
         # Add timestamps
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         health_data["last_ping_at"] = now.isoformat()
-        health_data["expires_at"] = (now + timedelta(days=1)).isoformat()
-        
-        if supabase is None:
-            # Use mock database
-            health_id = str(uuid.uuid4())
-            
-            # Check if we already have a record for this agent+server combination
-            for i, record in enumerate(MOCK_DB.get(AGENT_HEALTH_TABLE, [])):
-                if (record.get("agent_id") == health_data["agent_id"] and 
-                    record.get("server_id") == health_data["server_id"]):
-                    # Update existing record
-                    MOCK_DB[AGENT_HEALTH_TABLE][i].update(health_data)
-                    return MOCK_DB[AGENT_HEALTH_TABLE][i]
-            
-            # No existing record, create new one
-            health_data["id"] = health_id
-            MOCK_DB.setdefault(AGENT_HEALTH_TABLE, []).append(health_data)
-            return health_data
         
         # Use Supabase
         # First try to update existing record

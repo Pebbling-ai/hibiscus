@@ -80,14 +80,19 @@ async def list_agent_health(
         has_more = page < total_pages
         
         # Return paginated response
-        return PaginatedResponse(
-            items=health_records,
-            total=total_count,
-            page=page,
-            size=size,
-            pages=total_pages,
-            has_more=has_more
-        )
+        # Construct paginated response
+        response = {
+            "items": health_records,
+            "metadata": {
+                "total": total_count,
+                "page": page,
+                "page_size": size,
+                "total_pages": total_pages
+            }
+        }
+
+        return response
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

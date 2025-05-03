@@ -71,6 +71,9 @@ coverage.xml
 # Temporary files
 tmp/
 temp/
+frontend/.next/*
+frontend/node_modules/*
 
 # Generated files
 *.bak
+
