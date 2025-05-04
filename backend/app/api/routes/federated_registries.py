@@ -209,6 +209,15 @@ async def sync_registry_agents(registry):
                 agent_data["federation_source"] = registry["url"]
                 agent_data["registry_id"] = registry["id"]
                 
+                # Ensure federation_id is set from the remote agent's id
+                if "id" in agent_data:
+                    agent_data["federation_id"] = agent_data["id"]
+                
+                # Extract verification data if present
+                verification_data = None
+                if "verification" in agent_data:
+                    verification_data = agent_data.pop("verification")
+                    
                 # Check if agent already exists (by name or unique identifier)
                 existing_agent = None
                 if "id" in agent_data:
@@ -217,12 +226,19 @@ async def sync_registry_agents(registry):
                         registry_id=registry["id"]
                     )
                 
+                # Create or update the agent
+                created_agent = None
                 if existing_agent:
                     # Update existing agent
-                    await Database.update_federated_agent(existing_agent["id"], agent_data)
+                    created_agent = await Database.update_federated_agent(existing_agent["id"], agent_data)
                 else:
                     # Create new federated agent
-                    await Database.create_federated_agent(agent_data)
+                    created_agent = await Database.create_federated_agent(agent_data)
+                
+                # Create verification record if verification data was provided
+                if verification_data and created_agent:
+                    verification_data["agent_id"] = created_agent["id"]
+                    await Database.create_agent_verification(verification_data)
         
         # Update last synced timestamp
         await Database.update_federated_registry_sync_time(registry["id"])

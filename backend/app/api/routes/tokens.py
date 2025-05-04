@@ -25,9 +25,9 @@ async def create_api_token(
     try:
         # Calculate expiry date if provided
         expires_at = None
-        if hasattr(api_key_data, "expires_at") and api_key_data.expires_at:
+        if hasattr(api_key_data, "expires_at") and api_key_data.expires_at is not None:
             expires_at = api_key_data.expires_at
-        elif hasattr(api_key_data, "expires_in_days") and api_key_data.expires_in_days:
+        elif api_key_data.expires_in_days:
             expires_at = datetime.now(timezone.utc) + timedelta(days=api_key_data.expires_in_days)
         
         # Create the API key
