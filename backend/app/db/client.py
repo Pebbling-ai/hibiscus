@@ -295,21 +295,12 @@ class Database:
         """
         # Make a copy so we don't modify the original
         update_data_copy = update_data.copy()
-        update_data_copy["updated_at"] = datetime.utcnow().isoformat()
+        update_data_copy["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         # Convert capabilities, metadata, links, and dependencies to JSON if they exist
         for field in ['capabilities', 'metadata', 'links', 'dependencies']:
             if field in update_data_copy and update_data_copy[field] is not None:
                 update_data_copy[field] = json.dumps(update_data_copy[field])
-        
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            for i, agent in enumerate(agents):
-                if agent["id"] == agent_id:
-                    agents[i] = {**agent, **update_data_copy}
-                    return Database._parse_agent_json_fields(agents[i])
-            raise Exception(f"Agent with ID {agent_id} not found")
         
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).update(update_data_copy).eq("id", agent_id).execute()
@@ -371,7 +362,7 @@ class Database:
             The created API key data
         """
         key = secrets.token_hex(32)
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         
         key_data = {
             "id": str(uuid.uuid4()),
@@ -383,11 +374,6 @@ class Database:
             "last_used_at": None,
             "expires_at": expires_at,
         }
-        
-        if supabase is None:
-            # Use mock database
-            MOCK_DB.setdefault(API_KEYS_TABLE, []).append(key_data)
-            return key_data
         
         # Use Supabase
         response = supabase.table(API_KEYS_TABLE).insert(key_data).execute()
@@ -401,19 +387,7 @@ class Database:
     async def list_api_keys(user_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
         List all API keys for a user with pagination.
-        """
-        if supabase is None:
-            # Use mock database
-            api_keys = [
-                key for key in MOCK_DB.get(API_KEYS_TABLE, [])
-                if key.get("user_id") == user_id
-            ]
-            
-            # Apply pagination
-            paginated_keys = api_keys[offset:offset+limit]
-            
-            return paginated_keys
-        
+        """        
         # Use Supabase
         query = supabase.table(API_KEYS_TABLE).select("*").eq("user_id", user_id)
         
@@ -431,15 +405,7 @@ class Database:
     async def count_api_keys(user_id: str) -> int:
         """
         Count the total number of API keys for a user.
-        """
-        if supabase is None:
-            # Use mock database
-            api_keys = [
-                key for key in MOCK_DB.get(API_KEYS_TABLE, [])
-                if key.get("user_id") == user_id
-            ]
-            return len(api_keys)
-        
+        """   
         # Use Supabase
         query = supabase.table(API_KEYS_TABLE).select("id", count="exact").eq("user_id", user_id)
         
@@ -455,15 +421,6 @@ class Database:
         """
         Delete an API key.
         """
-        if supabase is None:
-            # Use mock database
-            keys = MOCK_DB.get(API_KEYS_TABLE, [])
-            for i, key in enumerate(keys):
-                if key.get("id") == key_id and key.get("user_id") == user_id:
-                    keys.pop(i)
-                    return True
-            return False
-        
         # Use Supabase
         response = supabase.table(API_KEYS_TABLE)\
             .delete()\
@@ -481,15 +438,6 @@ class Database:
         """
         List all federated registries with pagination.
         """
-        if supabase is None:
-            # Use mock database
-            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
-            
-            # Apply pagination
-            paginated_registries = registries[offset:offset+limit]
-            
-            return paginated_registries
-        
         # Use Supabase
         query = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*")
         
@@ -528,7 +476,7 @@ class Database:
         """
         Add a new federated registry.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         
         registry_record = {
             **registry_data,
@@ -536,11 +484,6 @@ class Database:
             "created_at": now,
             "last_synced_at": None,
         }
-        
-        if supabase is None:
-            # Use mock database
-            MOCK_DB.setdefault(FEDERATED_REGISTRIES_TABLE, []).append(registry_record)
-            return registry_record
         
         # Use Supabase
         response = supabase.table(FEDERATED_REGISTRIES_TABLE).insert(registry_record).execute()
@@ -589,13 +532,6 @@ class Database:
         """
         Get the health status for a specific agent across all servers.
         """
-        if supabase is None:
-            # Use mock database
-            return [
-                record for record in MOCK_DB.get(AGENT_HEALTH_TABLE, [])
-                if record.get("agent_id") == agent_id
-            ]
-        
         # Use Supabase
         query = (
             supabase.table(AGENT_HEALTH_TABLE)
@@ -618,17 +554,6 @@ class Database:
         """
         List health status for all agents, optionally filtered by server.
         """
-        if supabase is None:
-            # Use mock database
-            records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
-            
-            # Filter by server_id if provided
-            if server_id:
-                records = [r for r in records if r.get("server_id") == server_id]
-            
-            # Apply pagination
-            return records[offset:offset+limit]
-        
         # Use Supabase
         query = supabase.table(AGENT_HEALTH_TABLE).select("*")
         
@@ -651,16 +576,6 @@ class Database:
         """
         Count the total number of agent health records.
         """
-        if supabase is None:
-            # Use mock database
-            records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
-            
-            # Filter by server_id if provided
-            if server_id:
-                records = [r for r in records if r.get("server_id") == server_id]
-            
-            return len(records)
-        
         # Use Supabase
         query = supabase.table(AGENT_HEALTH_TABLE).select("id", count="exact")
         
@@ -681,56 +596,6 @@ class Database:
         Get a summary of agent health status grouped by agent.
         This requires joining with the agents table to get agent names.
         """
-        if supabase is None:
-            # Use mock database
-            summary = {}
-            
-            # Get all health records
-            health_records = MOCK_DB.get(AGENT_HEALTH_TABLE, [])
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            
-            # Group by agent_id
-            for record in health_records:
-                agent_id = record.get("agent_id")
-                if agent_id not in summary:
-                    # Find agent name
-                    agent_name = "Unknown"
-                    for agent in agents:
-                        if agent.get("id") == agent_id:
-                            agent_name = agent.get("name", "Unknown")
-                            break
-                    
-                    summary[agent_id] = {
-                        "agent_id": agent_id,
-                        "agent_name": agent_name,
-                        "servers": [],
-                        "status": "inactive",
-                        "last_ping_at": None
-                    }
-                
-                # Add server info
-                server_info = {
-                    "server_id": record.get("server_id"),
-                    "status": record.get("status"),
-                    "last_ping_at": record.get("last_ping_at"),
-                    "metadata": record.get("metadata", {})
-                }
-                summary[agent_id]["servers"].append(server_info)
-                
-                # Update summary status and last_ping_at
-                if record.get("status") == "active":
-                    summary[agent_id]["status"] = "active"
-                
-                if (summary[agent_id]["last_ping_at"] is None or
-                    record.get("last_ping_at") > summary[agent_id]["last_ping_at"]):
-                    summary[agent_id]["last_ping_at"] = record.get("last_ping_at")
-            
-            return list(summary.values())
-        
-        # For Supabase, we need a more sophisticated query
-        # This requires a join between agent_health and agents
-        # Since this functionality is complex in Supabase, we'll fetch data and process in Python
-        
         # Get all health records
         health_query = supabase.table(AGENT_HEALTH_TABLE).select("*").execute()
         
@@ -785,15 +650,7 @@ class Database:
     async def get_federated_registry(registry_id: str) -> Optional[Dict[str, Any]]:
         """
         Get a federated registry by ID.
-        """
-        if supabase is None:
-            # Use mock database
-            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
-            for registry in registries:
-                if registry["id"] == registry_id:
-                    return registry
-            return None
-        
+        """        
         # Use Supabase
         response = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*").eq("id", registry_id).execute()
         
@@ -809,16 +666,7 @@ class Database:
     async def get_agent_by_federation_id(federation_id: str, registry_id: str) -> Optional[Dict[str, Any]]:
         """
         Get an agent by its federation ID and registry ID.
-        """
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            for agent in agents:
-                if (agent.get("federation_id") == federation_id and 
-                    agent.get("registry_id") == registry_id):
-                    return Database._parse_agent_json_fields(agent)
-            return None
-        
+        """        
         # Use Supabase
         response = (supabase.table(AGENTS_TABLE)
                    .select("*")
@@ -851,13 +699,6 @@ class Database:
             agent_data["id"] = str(uuid.uuid4())
             agent_data["federation_id"] = agent_data["id"]
         
-        if supabase is None:
-            # Use mock database
-            agent_data["created_at"] = datetime.now(timezone.utc).isoformat()
-            agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-            MOCK_DB.setdefault(AGENTS_TABLE, []).append(agent_data)
-            return Database._parse_agent_json_fields(agent_data)
-        
         # Use Supabase
         # Add timestamps
         agent_data["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -884,15 +725,6 @@ class Database:
             agent_data["federation_id"] = agent_data["id"]
             del agent_data["id"]
         
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            for i, agent in enumerate(agents):
-                if agent["id"] == agent_id:
-                    agents[i] = {**agent, **agent_data}
-                    return Database._parse_agent_json_fields(agents[i])
-            raise Exception(f"Federated agent with ID {agent_id} not found")
-        
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).update(agent_data).eq("id", agent_id).execute()
         
@@ -913,15 +745,6 @@ class Database:
             "last_synced_at": datetime.now(timezone.utc).isoformat()
         }
         
-        if supabase is None:
-            # Use mock database
-            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
-            for i, registry in enumerate(registries):
-                if registry["id"] == registry_id:
-                    registries[i] = {**registry, **sync_data}
-                    return registries[i]
-            raise Exception(f"Federated registry with ID {registry_id} not found")
-        
         # Use Supabase
         response = supabase.table(FEDERATED_REGISTRIES_TABLE).update(sync_data).eq("id", registry_id).execute()
         
@@ -938,15 +761,6 @@ class Database:
         """
         Count agents with optional filtering by registry_id.
         """
-        if supabase is None:
-            # Use mock database
-            agents = MOCK_DB.get(AGENTS_TABLE, [])
-            
-            if registry_id:
-                agents = [agent for agent in agents if agent.get("registry_id") == registry_id]
-                
-            return len(agents)
-        
         # Use Supabase
         query = supabase.table(AGENTS_TABLE).select("count", count="exact")
         
