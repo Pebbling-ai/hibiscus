@@ -27,15 +27,15 @@ console = Console()
 load_dotenv()
 
 # Database connection parameters
-DB_CONNECTION_STRING = os.getenv("SUPERBASE_CONNECTION_STRING")
-DB_HOST = os.getenv("SUPERBASE_HOST")
-DB_PASSWORD = os.getenv("SUPERBASE_PASSWORD")
-DB_PORT = os.getenv("SUPERBASE_PORT", "5432")
-DB_USER = os.getenv("SUPERBASE_USER", "postgres")
-DB_NAME = os.getenv("SUPERBASE_DB_NAME", "postgres")
+DB_CONNECTION_STRING = os.getenv("supabase_CONNECTION_STRING")
+DB_HOST = os.getenv("supabase_HOST")
+DB_PASSWORD = os.getenv("supabase_PASSWORD")
+DB_PORT = os.getenv("supabase_PORT", "5432")
+DB_USER = os.getenv("supabase_USER", "postgres")
+DB_NAME = os.getenv("supabase_DB_NAME", "postgres")
 
 if not DB_CONNECTION_STRING and (not DB_HOST or not DB_PASSWORD):
-    raise ValueError("Database connection parameters missing. Set SUPERBASE_CONNECTION_STRING or both SUPERBASE_HOST and SUPERBASE_PASSWORD")
+    raise ValueError("Database connection parameters missing. Set supabase_CONNECTION_STRING or both supabase_HOST and supabase_PASSWORD")
 
 
 async def create_tables():

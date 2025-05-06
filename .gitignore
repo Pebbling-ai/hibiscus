@@ -57,6 +57,7 @@ backend/scripts/logs/
 .env.test.local
 .env.production.local
 backend/.env
+frontend/.env
 
 # Coverage reports
 htmlcov/

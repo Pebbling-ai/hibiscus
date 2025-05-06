@@ -2,12 +2,53 @@ from typing import List, Optional
 import math
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
+from loguru import logger
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
 from app.models.schemas import Agent, AgentCreate, AgentUpdate, PaginatedResponse, PaginationMetadata
+from app.utils.typesense_utils import TypesenseClient
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+# Flag to track if startup event has already run
+_startup_has_run = False
+
+# Initialize Typesense collections on startup
+@router.on_event("startup")
+async def startup_event():
+    """Initialize Typesense collections and sync agents on startup"""
+    global _startup_has_run
+    
+    # Skip if already run
+    if _startup_has_run:
+        logger.debug("Startup event already executed, skipping duplicate run")
+        return
+        
+    _startup_has_run = True
+    
+    try:
+        # Initialize Typesense collections
+        initialized = await TypesenseClient.initialize_collections()
+        if initialized:
+            # Get all agents from database for syncing
+            async def fetch_agent(agent_id):
+                return await Database.get_agent(agent_id)
+                
+            # Get all agent IDs first
+            agents = await Database.list_agents(limit=1000, offset=0)
+            agent_ids = [str(agent["id"]) for agent in agents if "id" in agent]
+            
+            if agent_ids:
+                # Sync agents with Typesense
+                results = await TypesenseClient.bulk_sync_agents(agent_ids, fetch_agent)
+                success_count = sum(1 for success in results.values() if success)
+                
+                logger.info(f"Startup sync: Processed {len(agent_ids)} agents, successfully synced {success_count}")
+            else:
+                logger.info("No agents found to sync during startup")
+    except Exception as e:
+        logger.error(f"Error initializing Typesense or syncing agents: {str(e)}")
 
 
 @router.get("/", response_model=PaginatedResponse[Agent])
@@ -21,10 +62,21 @@ async def list_agents(
     try:
         # Calculate offset
         offset = (page - 1) * page_size
+
+        # search agents in typesense
+        if search:
+            agents = await TypesenseClient.search_agents(search)
+            agents_id = [agent["id"] for agent in agents.get('hits', [])]
+            agents = await Database.list_agents(
+                agent_ids=agents_id,
+                is_team=is_team,
+                limit=page_size,
+                offset=offset
+            )
+
         
         # Get agents for current page
         agents = await Database.list_agents(
-            search_term=search,
             is_team=is_team,
             limit=page_size,
             offset=offset
@@ -118,6 +170,12 @@ async def create_agent(
     try:
         # Create agent record
         created_agent = await Database.create_agent(agent_data)
+
+        # Create agent record in Typesense
+        typesense_record_created = await TypesenseClient.create_agent(created_agent)
+        if not typesense_record_created:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                               detail="Failed to create agent record in Typesense")
         
         # Store verification data if complete
         if verification_data.get("did") and verification_data.get("public_key"):

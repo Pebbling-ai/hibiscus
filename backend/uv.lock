@@ -508,6 +508,7 @@ dependencies = [
     { name = "rich" },
     { name = "supabase" },
     { name = "typer" },
+    { name = "typesense" },
     { name = "uvicorn" },
 ]
 
@@ -541,6 +542,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.0.284" },
     { name = "supabase", specifier = "==2.0.3" },
     { name = "typer", extras = ["all"], specifier = ">=0.9.0" },
+    { name = "typesense", specifier = ">=1.0.3" },
     { name = "uvicorn", specifier = ">=0.15.0" },
 ]
 
@@ -1228,6 +1230,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/98/1a/5f36851f439884bcfe8539f6a20ff7516e7b60f319bbaf69a90dc35cc2eb/typer-0.15.3.tar.gz", hash = "sha256:818873625d0569653438316567861899f7e9972f2e6e0c16dab608345ced713c", size = 101641 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/48/20/9d953de6f4367163d23ec823200eb3ecb0050a2609691e512c8b95827a9b/typer-0.15.3-py3-none-any.whl", hash = "sha256:c86a65ad77ca531f03de08d1b9cb67cd09ad02ddddf4b34745b5008f43b239bd", size = 45253 },
+]
+
+[[package]]
+name = "typesense"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/67/bf/3bfa71ccd801d0a4b06206b5d0bcf4f399204901865924e36fe7cbf459a6/typesense-1.0.3.tar.gz", hash = "sha256:5e80e0fc71fd8a4eff9d3b8d25e7c312db5e4d542b635d3eea96d87ed129cf33", size = 43136 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/42/9823c42f2b383deae16c1ecb27566d0b1054a28e31fad145bab62ff17897/typesense-1.0.3-py3-none-any.whl", hash = "sha256:b5976a8f6b9afb451ebbd4763778198ac8d62ecf401bc7cd702490171b36d2c9", size = 68283 },
 ]
 
 [[package]]

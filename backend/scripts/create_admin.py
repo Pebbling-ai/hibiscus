@@ -25,11 +25,11 @@ API_KEYS_TABLE = "api_keys"
 
 # Initialize Supabase client
 # For admin operations, we need to use the service_role key to bypass RLS
-supabase_url = os.getenv("SUPERBASE_URL")
-supabase_key = os.getenv("SUPERBASE_SERVICE_ROLE_KEY", os.getenv("SUPERBASE_KEY"))
+supabase_url = os.getenv("supabase_URL")
+supabase_key = os.getenv("supabase_SERVICE_ROLE_KEY", os.getenv("supabase_KEY"))
 
 if not supabase_url or not supabase_key:
-    console.print("[bold red]Error: Missing Supabase credentials. Set SUPERBASE_URL and SUPERBASE_SERVICE_ROLE_KEY in .env file.[/bold red]")
+    console.print("[bold red]Error: Missing Supabase credentials. Set supabase_URL and supabase_SERVICE_ROLE_KEY in .env file.[/bold red]")
     exit(1)
 
 # Connect with service role to bypass RLS

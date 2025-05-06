@@ -1,107 +1,59 @@
+"""
+Database client for accessing and managing data in Supabase.
+This module provides an abstraction layer over the Supabase database.
+"""
 import os
+import uuid
 import json
 import secrets
-import uuid
 from typing import Dict, List, Optional, Any, Union, Tuple
-from supabase import create_client, Client
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+
+# Import Supabase utilities
+from app.utils.supabase_utils import (
+    SupabaseClient,
+    AGENTS_TABLE,
+    USERS_TABLE,
+    API_KEYS_TABLE,
+    FEDERATED_REGISTRIES_TABLE,
+    AGENT_HEALTH_TABLE,
+    AGENT_VERIFICATION_TABLE,
+    parse_json_fields,
+    serialize_json_fields
+)
 
 # Load environment variables
 load_dotenv()
 
-# Table names
-AGENTS_TABLE = "agents"
-USERS_TABLE = "users"
-API_KEYS_TABLE = "api_keys"
-FEDERATED_REGISTRIES_TABLE = "federated_registries"
-AGENT_HEALTH_TABLE = "agent_health"
-AGENT_VERIFICATION_TABLE = "agent_verification"
+# Get Supabase client
+supabase = SupabaseClient.get_client()
 
-# Initialize Supabase client
-superbase_url = os.getenv("SUPERBASE_URL")
-superbase_key = os.getenv("SUPERBASE_SERVICE_ROLE_KEY", os.getenv("SUPERBASE_KEY"))
-
-if not superbase_url or not superbase_key:
-    print("Warning: SUPERBASE_URL and SUPERBASE_KEY not set. Using mock database for development.")
-    supabase = None
-else:
-    supabase: Client = create_client(superbase_url, superbase_key)
-
-# Mock data for development without a Supabase connection
+# Mock data for development without Supabase
 MOCK_DB = {
-    AGENTS_TABLE: [
-        {
-            "id": "74a0d5e0-3b8c-4199-84fc-adcb1bc25e76",
-            "name": "Text Generation Assistant",
-            "description": "AI assistant for generating and editing text content",
-            "category": "text",
-            "capabilities": ["text_generation", "editing", "summarization"],
-            "api_endpoint": "https://api.example.com/text-assistant",
-            "website_url": "https://example.com/text-assistant",
-            "logo_url": "https://example.com/logos/text-assistant.png",
-            "is_federated": False,
-            "federation_source": None,
-            "owner_id": "6c84fb90-12c4-11e1-840d-7b25c5ee775a",
-            "created_at": "2023-01-15T12:00:00",
-            "updated_at": "2023-01-15T12:00:00"
-        },
-        {
-            "id": "8f7e6d5c-4b3a-2c1d-0e9f-8a7b6c5d4e3f",
-            "name": "Image Generator",
-            "description": "AI agent for generating images from text descriptions",
-            "category": "image",
-            "capabilities": ["image_generation", "style_transfer"],
-            "api_endpoint": "https://api.example.com/image-generator",
-            "website_url": "https://example.com/image-generator",
-            "logo_url": "https://example.com/logos/image-generator.png",
-            "is_federated": False,
-            "federation_source": None,
-            "owner_id": "6c84fb90-12c4-11e1-840d-7b25c5ee775a",
-            "created_at": "2023-02-20T15:30:00",
-            "updated_at": "2023-02-20T15:30:00"
-        }
-    ],
-    USERS_TABLE: [
-        {
-            "id": "6c84fb90-12c4-11e1-840d-7b25c5ee775a",
-            "email": "user@example.com",
-            "full_name": "Demo User",
-            "created_at": "2023-01-01T10:00:00",
-            "updated_at": None
-        }
-    ],
-    API_KEYS_TABLE: [
-        {
-            "id": "abcdef12-3456-7890-abcd-ef1234567890",
-            "user_id": "6c84fb90-12c4-11e1-840d-7b25c5ee775a",
-            "key": "test_api_key_12345",
-            "name": "Test API Key",
-            "created_at": "2023-01-05T11:00:00",
-            "last_used_at": None,
-            "expires_at": None
-        }
-    ],
-    FEDERATED_REGISTRIES_TABLE: [
-        {
-            "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-            "name": "Partner Registry",
-            "url": "https://partner-registry.example.com",
-            "api_key": "partner_api_key_67890",
-            "created_at": "2023-03-10T09:15:00",
-            "last_synced_at": "2023-05-01T14:30:00"
-        }
-    ],
+    AGENTS_TABLE: [],
+    USERS_TABLE: [],
+    API_KEYS_TABLE: [],
+    FEDERATED_REGISTRIES_TABLE: [],
     AGENT_HEALTH_TABLE: [],
     AGENT_VERIFICATION_TABLE: []
 }
 
 
 class Database:
+    """Database client for accessing and managing data in Supabase."""
+
     @staticmethod
     async def _execute_query(table: str, query_fn=None) -> Union[List[Dict[str, Any]], Dict[str, Any], None]:
         """
         Execute a query against Supabase or mock database.
+        
+        Args:
+            table: The table to query
+            query_fn: Function that takes a Supabase client and returns a query result
+            
+        Returns:
+            Query results from Supabase or mock database
         """
         if supabase is None:
             # Use mock database
@@ -112,19 +64,28 @@ class Database:
         # Use real Supabase client
         return query_fn(supabase)
     
+    # ===== Agent Methods =====
+    
     @staticmethod
-    async def list_agents(limit: int = 100, offset: int = 0, search_term: Optional[str] = None, is_team: Optional[bool] = None) -> List[Dict[str, Any]]:
+    async def list_agents(
+        limit: int = 100, 
+        offset: int = 0, 
+        is_team: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
         """
-        List all agents with optional filtering and deserialize JSON fields.
-        Include verification data from agent_verification table.
+        List all agents with optional filtering and pagination.
+        Include verification and health data from related tables.
+        
+        Args:
+            limit: Maximum number of items to return
+            offset: Number of items to skip (for pagination)
+            is_team: Optional filter for teams
+            
+        Returns:
+            List of agent data dictionaries
         """
         # Use Supabase
         query = supabase.table(AGENTS_TABLE).select("*")
-        
-        # Apply search filter if provided
-        if search_term:
-            search_term = search_term.lower()
-            query = query.or_(f"name.ilike.%{search_term}%,description.ilike.%{search_term}%,documentation.ilike.%{search_term}%")
         
         # Apply team filter if provided
         if is_team is not None:
@@ -141,7 +102,8 @@ class Database:
         # Parse JSON fields for each agent
         parsed_agents = []
         for agent in response.data:
-            parsed_agent = Database._parse_agent_json_fields(agent)
+            # Parse agent JSON fields
+            parsed_agent = parse_json_fields(agent)
             
             # Fetch verification data for this agent
             verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent["id"]).execute()
@@ -163,15 +125,33 @@ class Database:
                     else:
                         parsed_agent["did_document"] = verification["did_document"]
             
+            # Fetch health data for this agent
+            health_data = await Database._fetch_agent_health_data(agent["id"])
+            parsed_agent.update(health_data)
+            
             parsed_agents.append(parsed_agent)
             
-        return parsed_agents
+        # Sort agents to prioritize healthy ones
+        sorted_agents = sorted(parsed_agents, 
+                              key=lambda x: (
+                                  0 if x.get("health_status") == "active" else
+                                  1 if x.get("health_status") == "degraded" else
+                                  2 if x.get("health_status") == "inactive" else 3
+                              ))
+            
+        return sorted_agents
 
     @staticmethod
     async def get_agent(agent_id: str) -> Optional[Dict[str, Any]]:
         """
         Get agent by ID and deserialize JSON fields.
         Include verification data from agent_verification table.
+        
+        Args:
+            agent_id: UUID of the agent to retrieve
+            
+        Returns:
+            Agent data dictionary or None if not found
         """
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).select("*").eq("id", agent_id).execute()
@@ -183,7 +163,7 @@ class Database:
             return None
         
         # Parse JSON fields
-        agent = Database._parse_agent_json_fields(response.data[0])
+        agent = parse_json_fields(response.data[0])
         
         # Fetch verification data for this agent
         verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent_id).execute()
@@ -205,55 +185,28 @@ class Database:
                 else:
                     agent["did_document"] = verification["did_document"]
         
-        return agent
-
-    @staticmethod
-    def _parse_agent_json_fields(agent: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Parse JSON fields that might be stored as strings.
-        """
-        # Parse JSON fields that might be stored as strings
-        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
-            if field in agent and isinstance(agent[field], str):
-                agent[field] = json.loads(agent[field])
+        # Fetch health data for this agent
+        health_data = await Database._fetch_agent_health_data(agent_id)
+        agent.update(health_data)
         
         return agent
 
     @staticmethod
     async def create_agent(agent_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Create a new agent with the given data following the Agent Communication Protocol standard.
+        Create a new agent with the given data.
         
-        The agent_data should include:
-        - name: RFC 1123 DNS-label compatible name
-        - description: Human-readable description
-        - documentation: (Optional) Full markdown documentation
-        - capabilities: (Optional) List of capability objects with name and description
-        - domains: (Optional) List of domain strings
-        - tags: (Optional) List of tag strings
-        - metadata: (Optional) Object containing framework, programming_language, license, etc.
-        - links: (Optional) List of link objects with type and URL
-        - dependencies: (Optional) List of dependency objects
-        - version: Version string
-        - author_name: Name of the agent's author
-        - author_url: (Optional) URL for the author
-        - api_endpoint: (Optional) URL for the agent's API
-        - website_url: (Optional) URL for the agent's website
-        - logo_url: (Optional) URL for the agent's logo
-        - is_federated: Boolean indicating if the agent is from a federated registry
-        - federation_source: (Optional) Source registry of a federated agent
-        - user_id: ID of the user creating the agent
+        Args:
+            agent_data: Dictionary containing agent data
+            
+        Returns:
+            Created agent data
         """
         agent_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         
         # Handle json serialization for complex fields
-        agent_data_copy = agent_data.copy()
-        
-        # Convert capabilities, metadata, links, and dependencies to JSON if they exist
-        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
-            if field in agent_data_copy and agent_data_copy[field] is not None:
-                agent_data_copy[field] = json.dumps(agent_data_copy[field])
+        agent_data_copy = serialize_json_fields(agent_data)
         
         # Prepare the agent data
         agent = {
@@ -274,33 +227,21 @@ class Database:
     @staticmethod
     async def update_agent(agent_id: str, update_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Update an existing agent with the given data following the Agent Communication Protocol standard.
+        Update an existing agent with the given data.
         
-        The update_data can include any subset of fields from AgentUpdate model:
-        - name: RFC 1123 DNS-label compatible name
-        - description: Human-readable description
-        - documentation: Full markdown documentation
-        - capabilities: List of capability objects with name and description
-        - domains: List of domain strings
-        - tags: List of tag strings
-        - metadata: Object containing framework, programming_language, license, etc.
-        - links: List of link objects with type and URL
-        - dependencies: List of dependency objects
-        - version: Version string
-        - author_name: Name of the agent's author
-        - author_url: URL for the author
-        - api_endpoint: URL for the agent's API
-        - website_url: URL for the agent's website
-        - logo_url: URL for the agent's logo
+        Args:
+            agent_id: UUID of the agent to update
+            update_data: Dictionary containing fields to update
+            
+        Returns:
+            Updated agent data
         """
         # Make a copy so we don't modify the original
         update_data_copy = update_data.copy()
         update_data_copy["updated_at"] = datetime.now(timezone.utc).isoformat()
         
-        # Convert capabilities, metadata, links, and dependencies to JSON if they exist
-        for field in ['capabilities', 'metadata', 'links', 'dependencies']:
-            if field in update_data_copy and update_data_copy[field] is not None:
-                update_data_copy[field] = json.dumps(update_data_copy[field])
+        # Use the utility function to serialize JSON fields
+        update_data_copy = serialize_json_fields(update_data_copy)
         
         # Use Supabase
         response = supabase.table(AGENTS_TABLE).update(update_data_copy).eq("id", agent_id).execute()
@@ -311,12 +252,44 @@ class Database:
         if not response.data:
             raise Exception(f"Agent with ID {agent_id} not found")
         
-        return Database._parse_agent_json_fields(response.data[0])
+        return parse_json_fields(response.data[0])
 
+    @staticmethod
+    async def count_agents(registry_id: Optional[str] = None) -> int:
+        """
+        Count agents with optional filtering by registry_id.
+        
+        Args:
+            registry_id: Optional registry ID to filter by
+            
+        Returns:
+            Count of matching agents
+        """
+        # Use Supabase
+        query = supabase.table(AGENTS_TABLE).select("count", count="exact")
+        
+        if registry_id:
+            query = query.eq("registry_id", registry_id)
+            
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting agents: {response.error.message}")
+        
+        return response.count
+    
+    # ===== Authentication Methods =====
+    
     @staticmethod
     async def validate_api_key(api_key: str) -> Optional[Dict[str, Any]]:
         """
         Validate an API key and return associated user data.
+        
+        Args:
+            api_key: The API key to validate
+            
+        Returns:
+            Dictionary with API key and user data, or None if invalid
         """
         # Use Supabase
         response = supabase.table(API_KEYS_TABLE).select("*").eq("key", api_key).execute()
@@ -348,7 +321,12 @@ class Database:
         }
 
     @staticmethod
-    async def create_api_key(user_id: str, name: str, expires_at: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
+    async def create_api_key(
+        user_id: str, 
+        name: str, 
+        expires_at: Optional[str] = None, 
+        description: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Create a new API key for a user.
         
@@ -384,6 +362,21 @@ class Database:
         return response.data[0]
 
     @staticmethod
+    async def count_api_keys(user_id: str) -> int:
+        """
+        Count the total number of API keys for a user.
+        """   
+        # Use Supabase
+        query = supabase.table(API_KEYS_TABLE).select("id", count="exact").eq("user_id", user_id)
+        
+        response = query.execute()
+        
+        if hasattr(response, "error") and response.error:
+            raise Exception(f"Error counting API keys: {response.error.message}")
+        
+        return response.count
+
+    @staticmethod
     async def list_api_keys(user_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """
         List all API keys for a user with pagination.
@@ -402,21 +395,6 @@ class Database:
         return response.data
 
     @staticmethod
-    async def count_api_keys(user_id: str) -> int:
-        """
-        Count the total number of API keys for a user.
-        """   
-        # Use Supabase
-        query = supabase.table(API_KEYS_TABLE).select("id", count="exact").eq("user_id", user_id)
-        
-        response = query.execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error counting API keys: {response.error.message}")
-        
-        return response.count
-
-    @staticmethod
     async def delete_api_key(key_id: str, user_id: str) -> bool:
         """
         Delete an API key.
@@ -432,71 +410,19 @@ class Database:
             raise Exception(f"Error deleting API key: {response.error.message}")
         
         return len(response.data) > 0
-
-    @staticmethod
-    async def list_federated_registries(limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        List all federated registries with pagination.
-        """
-        # Use Supabase
-        query = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*")
-        
-        # Apply pagination
-        query = query.range(offset, offset + limit - 1)
-        
-        response = query.execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error fetching federated registries: {response.error.message}")
-        
-        return response.data
-
-    @staticmethod
-    async def count_federated_registries() -> int:
-        """
-        Count the total number of federated registries.
-        """
-        if supabase is None:
-            # Use mock database
-            registries = MOCK_DB.get(FEDERATED_REGISTRIES_TABLE, [])
-            return len(registries)
-        
-        # Use Supabase
-        query = supabase.table(FEDERATED_REGISTRIES_TABLE).select("id", count="exact")
-        
-        response = query.execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error counting federated registries: {response.error.message}")
-        
-        return response.count
-
-    @staticmethod
-    async def add_federated_registry(registry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Add a new federated registry.
-        """
-        now = datetime.now(timezone.utc).isoformat()
-        
-        registry_record = {
-            **registry_data,
-            "id": str(uuid.uuid4()),
-            "created_at": now,
-            "last_synced_at": None,
-        }
-        
-        # Use Supabase
-        response = supabase.table(FEDERATED_REGISTRIES_TABLE).insert(registry_record).execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error creating federated registry: {response.error.message}")
-        
-        return response.data[0]
-
+    
+    # ===== Health Monitoring Methods =====
+    
     @staticmethod
     async def record_agent_health(health_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Record a health check ping from an agent.
+        
+        Args:
+            health_data: Dictionary containing health check data
+            
+        Returns:
+            Saved health record
         """
         # Add timestamps
         now = datetime.now(timezone.utc)
@@ -531,6 +457,12 @@ class Database:
     async def get_agent_health(agent_id: str) -> List[Dict[str, Any]]:
         """
         Get the health status for a specific agent across all servers.
+        
+        Args:
+            agent_id: UUID of the agent
+            
+        Returns:
+            List of health status records
         """
         # Use Supabase
         query = (
@@ -544,7 +476,7 @@ class Database:
             raise Exception(f"Error fetching agent health: {query.error.message}")
         
         return query.data
-    
+
     @staticmethod
     async def list_agent_health(
         limit: int = 100, 
@@ -570,7 +502,7 @@ class Database:
             raise Exception(f"Error listing agent health: {response.error.message}")
         
         return response.data
-    
+
     @staticmethod
     async def count_agent_health(server_id: Optional[str] = None) -> int:
         """
@@ -589,7 +521,7 @@ class Database:
             raise Exception(f"Error counting agent health: {response.error.message}")
         
         return response.count
-    
+
     @staticmethod
     async def get_agent_health_summary() -> List[Dict[str, Any]]:
         """
@@ -645,148 +577,16 @@ class Database:
                 summary[agent_id]["last_ping_at"] = last_ping
         
         return list(summary.values())
-
-    @staticmethod
-    async def get_federated_registry(registry_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a federated registry by ID.
-        """        
-        # Use Supabase
-        response = supabase.table(FEDERATED_REGISTRIES_TABLE).select("*").eq("id", registry_id).execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error fetching federated registry: {response.error.message}")
-        
-        if not response.data:
-            return None
-        
-        return response.data[0]
     
-    @staticmethod
-    async def get_agent_by_federation_id(federation_id: str, registry_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get an agent by its federation ID and registry ID.
-        """        
-        # Use Supabase
-        response = (supabase.table(AGENTS_TABLE)
-                   .select("*")
-                   .eq("federation_id", federation_id)
-                   .eq("registry_id", registry_id)
-                   .execute())
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error fetching agent by federation ID: {response.error.message}")
-        
-        if not response.data:
-            return None
-        
-        return Database._parse_agent_json_fields(response.data[0])
+    # ===== Agent Verification Methods =====
     
-    @staticmethod
-    async def create_federated_agent(agent_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a new federated agent.
-        """
-        # Ensure the agent is marked as federated
-        agent_data["is_federated"] = True
-        
-        # Store original ID as federation_id if present
-        if "id" in agent_data:
-            agent_data["federation_id"] = agent_data["id"]
-            # Generate new ID for our system
-            agent_data["id"] = str(uuid.uuid4())
-        else:
-            agent_data["id"] = str(uuid.uuid4())
-            agent_data["federation_id"] = agent_data["id"]
-        
-        # Use Supabase
-        # Add timestamps
-        agent_data["created_at"] = datetime.now(timezone.utc).isoformat()
-        agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        
-        response = supabase.table(AGENTS_TABLE).insert(agent_data).execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error creating federated agent: {response.error.message}")
-        
-        return Database._parse_agent_json_fields(response.data[0])
-    
-    @staticmethod
-    async def update_federated_agent(agent_id: str, agent_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Update a federated agent.
-        """
-        # Ensure the agent remains marked as federated
-        agent_data["is_federated"] = True
-        agent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        
-        # Don't overwrite our internal ID
-        if "id" in agent_data:
-            agent_data["federation_id"] = agent_data["id"]
-            del agent_data["id"]
-        
-        # Use Supabase
-        response = supabase.table(AGENTS_TABLE).update(agent_data).eq("id", agent_id).execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error updating federated agent: {response.error.message}")
-        
-        if not response.data:
-            raise Exception(f"Federated agent with ID {agent_id} not found")
-        
-        return Database._parse_agent_json_fields(response.data[0])
-    
-    @staticmethod
-    async def update_federated_registry_sync_time(registry_id: str) -> Dict[str, Any]:
-        """
-        Update the last_synced_at timestamp for a federated registry.
-        """
-        sync_data = {
-            "last_synced_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        # Use Supabase
-        response = supabase.table(FEDERATED_REGISTRIES_TABLE).update(sync_data).eq("id", registry_id).execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error updating federation sync time: {response.error.message}")
-        
-        if not response.data:
-            raise Exception(f"Federated registry with ID {registry_id} not found")
-        
-        return response.data[0]
-    
-    @staticmethod
-    async def count_agents(registry_id: Optional[str] = None) -> int:
-        """
-        Count agents with optional filtering by registry_id.
-        """
-        # Use Supabase
-        query = supabase.table(AGENTS_TABLE).select("count", count="exact")
-        
-        if registry_id:
-            query = query.eq("registry_id", registry_id)
-            
-        response = query.execute()
-        
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error counting agents: {response.error.message}")
-        
-        return response.count
-
     @staticmethod
     async def create_agent_verification(verification_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create a new agent verification record.
         
         Args:
-            verification_data: Dictionary containing verification information:
-                - agent_id: ID of the agent
-                - did: Decentralized Identifier
-                - public_key: Public key in PEM format
-                - verification_method: Method used for verification (e.g., 'mlts')
-                - status: Verification status ('active', 'revoked', etc.)
-                - last_verified: Timestamp of last verification (if any)
+            verification_data: Dictionary containing verification information
                 
         Returns:
             Created verification record
@@ -809,16 +609,6 @@ class Database:
             **verification_data_copy
         }
         
-        # Use encryption for sensitive fields if configured
-        if "private_key" in verification_data and hasattr(Database, "key_encryption"):
-            # Encrypt private key if present
-            verification_record["private_key"] = Database.key_encryption.encrypt(
-                verification_data["private_key"]
-            )
-            # Store encryption metadata
-            verification_record["encryption_type"] = "AES-256-GCM"
-            verification_record["key_reference"] = "master_key"
-        
         # Use Supabase
         response = supabase.table(AGENT_VERIFICATION_TABLE).insert(verification_record).execute()
         
@@ -836,3 +626,53 @@ class Database:
                 pass  # Keep as string if parsing fails
                 
         return result
+
+    @staticmethod
+    async def _fetch_agent_health_data(agent_id: str) -> Dict[str, Any]:
+        """
+        Fetch health data for a specific agent.
+        
+        Args:
+            agent_id: ID of the agent to fetch health data for
+            
+        Returns:
+            Dict containing health data fields
+        """
+        health_data = {
+            "health_status": "unknown",
+            "last_health_check": None,
+            "server_id": None,
+            "response_time": None,
+            "availability": None,
+            "health_details": None
+        }
+        
+        try:
+            # Fetch health data from database
+            health_query = supabase.table(AGENT_HEALTH_TABLE).select("*").eq("agent_id", agent_id).execute()
+            
+            if not hasattr(health_query, "error") and health_query.data:
+                health = health_query.data[0]
+                
+                # Add health fields to agent data
+                health_data["health_status"] = health.get("status")
+                health_data["last_health_check"] = health.get("last_ping_at")
+                health_data["server_id"] = health.get("server_id")
+                
+                # Add additional health metadata if available
+                if health.get("metadata"):
+                    metadata = health.get("metadata")
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata)
+                        except json.JSONDecodeError:
+                            pass
+                    
+                    if isinstance(metadata, dict):
+                        health_data["response_time"] = metadata.get("response_time")
+                        health_data["availability"] = metadata.get("availability")
+                        health_data["health_details"] = metadata
+        except Exception as e:
+            logger.error(f"Error fetching health data for agent {agent_id}: {str(e)}")
+            
+        return health_data
