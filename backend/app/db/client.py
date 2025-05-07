@@ -70,7 +70,8 @@ class Database:
     async def list_agents(
         limit: int = 100, 
         offset: int = 0, 
-        is_team: Optional[bool] = None
+        is_team: Optional[bool] = None,
+        agent_ids: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         List all agents with optional filtering and pagination.
@@ -80,7 +81,8 @@ class Database:
             limit: Maximum number of items to return
             offset: Number of items to skip (for pagination)
             is_team: Optional filter for teams
-            
+            agent_ids: Optional list of agent IDs to filter by
+        
         Returns:
             List of agent data dictionaries
         """
@@ -90,6 +92,15 @@ class Database:
         # Apply team filter if provided
         if is_team is not None:
             query = query.eq("is_team", is_team)
+        
+        # Apply agent_ids filter if provided
+        if agent_ids:
+            if len(agent_ids) == 1:
+                # Simple equality for single ID
+                query = query.eq("id", agent_ids[0])
+            else:
+                # Use 'in' filter for multiple IDs
+                query = query.in_("id", agent_ids)
         
         # Apply pagination
         query = query.range(offset, offset + limit - 1)

@@ -10,7 +10,16 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+        },
+        {
+            "name": "Python: CLI Start",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/cli.py",
+            "args": ["start"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
         }
     ]
 }
