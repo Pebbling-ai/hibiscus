@@ -39,12 +39,12 @@ Connect to other Hibiscus instances across the known universe. Your agents can n
 │ ┌─────────┐  ┌──────────┐  ┌────────────┐ │
 │ │  Agents │  │ Federation│  │   Auth    │ │
 │ └─────────┘  └──────────┘  └────────────┘ │
-└──┬────────────────────────────────┬───────┘
-   │                                │
-   ▼                                ▼
-┌──────────┐               ┌────────────────┐
-│ Supabase │◄──────────────┤    Typesense   │
-└──────────┘               └────────────────┘
+└──┬────────────────────┬──────────┬────────┘
+   │                    │          │
+   ▼                    │          ▼
+┌──────────┐            │    ┌────────────────┐
+│ Supabase │◄───────────┘    │    Typesense   │
+└──────────┘                 └────────────────┘
 
 ## 🧙‍♂️ Getting Started (No Magic Required)
 
@@ -61,11 +61,11 @@ git clone https://github.com/yourusername/hibiscus.git
 cd hibiscus
 
 # Create a virtual environment (it's like social distancing for your packages)
-uv venv
+uv venv --python 3.12
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate (good luck with that)
 
 # Install dependencies (it's mostly just FastAPI and some other cool stuff)
-uv pip install -e .
+uv sync
 
 # Copy the environment example (then actually fill it out, don't be lazy)
 cp .env.example .env
@@ -78,11 +78,39 @@ Edit your `.env` file with:
 - Typesense API key and URL (for that sweet, sweet search magic)
 - Secret key (don't use "password123" please, we're begging you)
 
+#### Supabase Setup
+
+Create a new project in Supabase and follow this [page](https://supabase.com/dashboard/project/zirkbuzgqxdmvmhtlaul/settings/api) to get the following environment variables to your `.env` file:
+
+```bash
+SUPABASE_URL=
+SUPABASE_KEY=
+SUPABASE_USER=
+SUPABASE_PASSWORD=
+SUPABASE_HOST=
+SUPABASE_PORT=
+SUPABASE_DB_NAME=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+#### Typesense Setup
+
+Create a new project in Typesense and follow this [page](https://cloud.typesense.org/clusters/) to get the following environment variables to your `.env` file:
+
+```bash
+TYPESENSE_HOST=
+TYPESENSE_PORT=
+TYPESENSE_API_KEY=
+TYPESENSE_SEARCH_KEY=
+TYPESENSE_PROTOCOL=
+TYPESENSE_API_VERSION=
+```
+
 ### 🚂 Running the Server
 
 **The Traditional Way (Boring But Reliable)**
 ```bash
-python -m uvicorn app.main:app --reload
+make dev
 ```
 
 **The Hibiscus CLI Way (Cool Kids Only)**
@@ -153,22 +181,12 @@ curl -X POST "http://localhost:8000/federated-registries" \
 
 ## 🚢 Deployment: Send Your Hibiscus to The Cloud
 
-### Docker (For Container Enthusiasts)
+### Docker (For Container Enthusiasts) - Main Folder
 
 ```bash
-# Build the image
-docker build -t hibiscus:latest .
-
-# Run it like you mean it
-docker run -p 8000:8000 --env-file .env hibiscus:latest
+make dev
 ```
 
-### Docker Compose (For the Orchestration Connoisseurs)
-
-```bash
-# Spin up the whole stack
-docker-compose up -d
-```
 
 ## 🐛 Troubleshooting (Because Stuff Breaks)
 
