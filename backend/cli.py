@@ -15,12 +15,13 @@ from rich.style import Style
 from rich.box import ROUNDED, DOUBLE, HEAVY
 from rich.emoji import Emoji
 from rich.text import Text
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich import print as rprint
 from pydantic import BaseModel
 from serve import serve_app
 from app.db.client import Database 
 from app.utils.typesense_utils import TypesenseClient
+from app.utils.search_utils import search_agents, get_agent_by_id, update_agent_with_typesense
 
 # Initialize Rich console for pretty output
 console = Console()
@@ -38,38 +39,6 @@ class Config:
 app_config = Config()
 
 # Helper functions
-def get_headers():
-    """Get authorization headers for API requests"""
-    if not app_config.api_key:
-        console.print(Panel(
-            "Warning: No API key set. Using unauthenticated access.",
-            title="Authentication Warning",
-            border_style="yellow"
-        ))
-        return {}
-    else:
-        return {"Authorization": f"Bearer {app_config.api_key}"}
-
-def handle_response(response):
-    """Handle API response and print errors if any"""
-    try:
-        response.raise_for_status()
-        return response.json()
-    except httpx.HTTPStatusError as e:
-        error_detail = "Unknown error"
-        try:
-            error_data = e.response.json()
-            error_detail = error_data.get("detail", str(e))
-        except:
-            error_detail = str(e)
-        
-        console.print(Panel(
-            f"[bold red]Error:[/] {error_detail}",
-            title="API Error",
-            border_style="red"
-        ))
-        raise typer.Exit(1)
-
 def get_health_emoji(status):
     """Return emoji based on health status"""
     if status == "active":
@@ -102,124 +71,40 @@ def start(
         reload=reload,
     )
 
-# Configuration command
-@app.command()
-def config(
-    api_url: Optional[str] = typer.Option(None, help="Hibiscus API URL"),
-    api_key: Optional[str] = typer.Option(None, help="API key for authentication"),
-):
-    """Configure CLI settings."""
-    # Simpler approach without nested layouts for a more compact display
-    config_content = []
-    
-    if api_url:
-        os.environ["HIBISCUS_API_URL"] = api_url
-        app_config.api_url = api_url
-        config_content.append(f"API URL set to: [bold cyan]{api_url}[/]")
-    
-    if api_key:
-        os.environ["HIBISCUS_API_KEY"] = api_key
-        app_config.api_key = api_key
-        config_content.append("API key set [bold green]successfully[/]")
-    
-    if not api_url and not api_key:
-        config_content.append("[bold]Current configuration:[/]")
-        config_content.append(f"API URL: [cyan]{app_config.api_url}[/]")
-        config_content.append(f"API Key: [{'green' if app_config.api_key else 'red'}]{'Configured ✓' if app_config.api_key else 'Not configured ✗'}[/]")
-    
-    # Use a single panel with a more compact display
-    console.print(Panel(
-        "\n".join(config_content),
-        title="[bold]🌺 Hibiscus Configuration[/]",
-        border_style="green",
-        box=ROUNDED,
-        padding=(1, 2)
-    ))
 
 @agent_app.command("list")
-def list_agents_db(
+def list_agents_cmd(
     search: Optional[str] = typer.Option(None, help="Search term for filtering agents"),
     is_team: Optional[bool] = typer.Option(None, help="Filter by team status"),
     page: int = typer.Option(1, help="Page number", min=1),
     page_size: int = typer.Option(20, help="Items per page", min=1, max=100),
     output_json: bool = typer.Option(False, "--json", help="Output as JSON")
 ):
-    """List agents with optional filtering using the database directly."""
-    
-    # Calculate offset for pagination
-    offset = (page - 1) * page_size
+    """List agents with optional filtering."""
     
     # This is an async function wrapper for the sync Typer command
     async def run_async():
-        agents = []
-        total_count = 0
-        
-        # Use Typesense for search if search term provided
-        if search:
-            try:
-                # Search using Typesense
-                search_results = await TypesenseClient.search_agents(search)
-                
-                # Extract the agent IDs from search results
-                # (Note: This is just for reference - we still need filter logic)
-                agents = await Database.list_agents(
-                    limit=page_size,
-                    offset=offset,
-                    is_team=is_team
-                )
-                
-                # Apply search result filtering here
-                # This is a simplified approach since we can't pass agent_ids
-                
-                # Get total count
-                total_count = await Database.count_agents(
-                    registry_id=None if not is_team else is_team
-                )
-            except Exception as e:
-                console.print(Panel(
-                    f"[bold red]Error searching agents:[/] {str(e)}",
-                    title="Search Error",
-                    border_style="red"
-                ))
-                return
-        else:
-            # Get agents directly from database
-            try:
-                agents = await Database.list_agents(
-                    limit=page_size,
-                    offset=offset,
-                    is_team=is_team
-                )
-                
-                # Get total count
-                total_count = await Database.count_agents(
-                    registry_id=None if not is_team else is_team
-                )
-            except Exception as e:
-                console.print(Panel(
-                    f"[bold red]Error fetching agents:[/] {str(e)}",
-                    title="Database Error",
-                    border_style="red"
-                ))
-                return
-        
-        # Calculate total pages
-        total_pages = (total_count + page_size - 1) // page_size
-        
-        # Create metadata
-        metadata = {
-            "total": total_count,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": total_pages
-        }
-        
-        return {"items": agents, "metadata": metadata}
+        try:
+            # Use the search_agents utility function
+            data = await search_agents(
+                search=search,
+                is_team=is_team,
+                page=page,
+                page_size=page_size
+            )
+            return data
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error fetching agents:[/] {str(e)}",
+                title="Search Error",
+                border_style="red"
+            ))
+            return None
     
     # Run the async function and get results
     with Progress(
         SpinnerColumn(),
-        TextColumn("[bold green]Fetching agents from database..."),
+        TextColumn("[bold green]Fetching agents..."),
         console=console,
         transient=True
     ) as progress:
@@ -232,7 +117,7 @@ def list_agents_db(
         except Exception as e:
             console.print(Panel(
                 f"[bold red]Error:[/] {str(e)}",
-                title="Database Error",
+                title="Search Error",
                 border_style="red"
             ))
             return
@@ -256,7 +141,7 @@ def list_agents_db(
     
     # Create and populate table
     table = Table(
-        title=f"🌺 [bold]Hibiscus Agents (Database Direct)[/]",
+        title=f"🌺 [bold]Hibiscus Agents[/]",
         box=ROUNDED,
         highlight=True,
         show_header=True,
@@ -296,6 +181,292 @@ def list_agents_db(
     pagination_text.append(" total agents", style="dim")
     
     console.print(Panel(pagination_text, box=ROUNDED, border_style="blue", expand=False))
+
+
+@agent_app.command("get")
+def get_agent_cmd(
+    agent_id: str = typer.Argument(..., help="ID of the agent to retrieve"),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON")
+):
+    """Get a specific agent by ID."""
+    
+    async def run_async():
+        try:
+            # Use the get_agent_by_id utility function
+            agent = await get_agent_by_id(agent_id)
+            return agent
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error retrieving agent:[/] {str(e)}",
+                title="Error",
+                border_style="red"
+            ))
+            return None
+    
+    # Run the async function and get results
+    with Progress(
+        SpinnerColumn(),
+        TextColumn(f"[bold green]Fetching agent with ID: {agent_id}..."),
+        console=console,
+        transient=True
+    ) as progress:
+        progress.add_task("fetch", total=None)
+        try:
+            # Run the async function
+            agent = asyncio.run(run_async())
+            if not agent:
+                return
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error:[/] {str(e)}",
+                title="Agent Retrieval Error",
+                border_style="red"
+            ))
+            return
+    
+    # Output as JSON if requested
+    if output_json:
+        console.print_json(json.dumps(agent))
+        return
+    
+    # Display agent details in a rich format
+    display_agent_details(agent)
+
+
+@agent_app.command("update")
+def update_agent_cmd(
+    agent_id: str = typer.Argument(..., help="ID of the agent to retrieve and update"),
+    output_json: bool = typer.Option(False, "--json", help="Output as JSON")
+):
+    """Update an existing agent interactively."""
+    from rich.prompt import Prompt, Confirm
+    
+    # First, get the current agent data
+    async def get_agent_async():
+        try:
+            return await get_agent_by_id(agent_id)
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error retrieving agent:[/] {str(e)}",
+                title="Error",
+                border_style="red"
+            ))
+            return None
+            
+    # Fetch the agent
+    with Progress(
+        SpinnerColumn(),
+        TextColumn(f"[bold green]Fetching agent with ID: {agent_id}..."),
+        console=console,
+        transient=True
+    ) as progress:
+        progress.add_task("fetch", total=None)
+        try:
+            agent = asyncio.run(get_agent_async())
+            if not agent:
+                return
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error:[/] {str(e)}",
+                title="Agent Retrieval Error",
+                border_style="red"
+            ))
+            return
+    
+    # Display current agent details
+    console.print(Panel(
+        f"You are about to update the following agent:",
+        title="[bold]🌺 Update Agent[/]",
+        border_style="yellow"
+    ))
+    display_agent_details(agent)
+    
+    # Collect update data interactively
+    update_data = {}
+    
+    # Update name
+    if Confirm.ask("Update name?", default=False):
+        new_name = Prompt.ask("Enter new name", default=agent.get("name", ""))
+        if new_name != agent.get("name", ""):
+            update_data["name"] = new_name
+    
+    # Update description
+    if Confirm.ask("Update description?", default=False):
+        new_description = Prompt.ask("Enter new description", default=agent.get("description", ""))
+        if new_description != agent.get("description", ""):
+            update_data["description"] = new_description
+    
+    # Update tags
+    if Confirm.ask("Update tags?", default=False):
+        current_tags = ", ".join(agent.get("tags", []))
+        new_tags_str = Prompt.ask("Enter tags (comma-separated)", default=current_tags)
+        if new_tags_str.strip():
+            new_tags = [tag.strip() for tag in new_tags_str.split(",")]
+            if new_tags != agent.get("tags", []):
+                update_data["tags"] = new_tags
+    
+    # Update domains
+    if Confirm.ask("Update domains?", default=False):
+        current_domains = ", ".join(agent.get("domains", []))
+        new_domains_str = Prompt.ask("Enter domains (comma-separated)", default=current_domains)
+        if new_domains_str.strip():
+            new_domains = [domain.strip() for domain in new_domains_str.split(",")]
+            if new_domains != agent.get("domains", []):
+                update_data["domains"] = new_domains
+    
+    # Update metadata (if applicable)
+    if agent.get("metadata") and Confirm.ask("Update metadata?", default=False):
+        console.print("[yellow]Note: Manual metadata editing not supported in CLI. Use the API for complex metadata updates.[/]")
+    
+    # If it's a team, update mode
+    if agent.get("is_team") and Confirm.ask("Update team mode?", default=False):
+        modes = ["collaborate", "coordinate", "route"]
+        current_mode_index = modes.index(agent.get("mode", "collaborate")) if agent.get("mode") in modes else 0
+        mode_options = "\n".join([f"{i+1}. {mode}" for i, mode in enumerate(modes)])
+        console.print(f"Team modes:\n{mode_options}")
+        mode_choice = Prompt.ask("Select mode (1-3)", default=str(current_mode_index + 1))
+        try:
+            mode_index = int(mode_choice) - 1
+            if 0 <= mode_index < len(modes):
+                new_mode = modes[mode_index]
+                if new_mode != agent.get("mode"):
+                    update_data["mode"] = new_mode
+        except ValueError:
+            console.print("[red]Invalid selection, mode not updated[/]")
+    
+    # Check if any data was updated
+    if not update_data:
+        console.print(Panel(
+            "No changes were made to the agent.",
+            title="Update Cancelled",
+            border_style="yellow"
+        ))
+        return
+    
+    # Confirm the update
+    console.print(Panel(
+        f"The following fields will be updated: {', '.join(update_data.keys())}",
+        title="Confirm Update",
+        border_style="yellow"
+    ))
+    
+    if not Confirm.ask("Proceed with update?", default=True):
+        console.print("Update cancelled.")
+        return
+    
+    # Update the agent
+    async def update_agent_async():
+        try:
+            # Get the user ID from the agent
+            user_id = agent.get("user_id")
+            if not user_id:
+                raise ValueError("Could not determine user ID from agent data")
+                
+            # Use the update_agent_with_typesense utility function
+            updated_agent = await update_agent_with_typesense(
+                agent_id=agent_id,
+                update_data=update_data,
+                current_user_id=user_id
+            )
+            return updated_agent
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error updating agent:[/] {str(e)}",
+                title="Error",
+                border_style="red"
+            ))
+            return None
+    
+    # Run the update
+    with Progress(
+        SpinnerColumn(),
+        TextColumn(f"[bold green]Updating agent..."),
+        console=console,
+        transient=True
+    ) as progress:
+        progress.add_task("update", total=None)
+        try:
+            updated_agent = asyncio.run(update_agent_async())
+            if not updated_agent:
+                return
+        except Exception as e:
+            console.print(Panel(
+                f"[bold red]Error:[/] {str(e)}",
+                title="Update Error",
+                border_style="red"
+            ))
+            return
+    
+    # Output as JSON if requested
+    if output_json:
+        console.print_json(json.dumps(updated_agent))
+        return
+    
+    # Display success message and updated agent details
+    console.print(Panel(
+        "Agent updated successfully!",
+        title="Update Complete",
+        border_style="green"
+    ))
+    display_agent_details(updated_agent)
+
+
+def display_agent_details(agent: Dict[str, Any]):
+    """Display agent details in a rich format."""
+    # Create the main panel
+    title = f"🌺 Agent: [bold]{agent.get('name', 'Unnamed Agent')}[/]"
+    
+    # Health status
+    health_status = agent.get("health_status", "unknown").lower()
+    health_emoji = get_health_emoji(health_status)
+    
+    # Basic details
+    details = [
+        f"[bold]ID:[/] {agent.get('id', 'N/A')}",
+        f"[bold]Type:[/] {'Team' if agent.get('is_team') else 'Individual Agent'}",
+        f"[bold]Health:[/] {health_emoji} {health_status.capitalize() if health_status else 'Unknown'}",
+        f"[bold]Created:[/] {agent.get('created_at', 'N/A')}",
+        f"[bold]Last Updated:[/] {agent.get('updated_at', 'N/A')}",
+    ]
+    
+    # Add description if available
+    if agent.get('description'):
+        details.append("")
+        details.append("[bold]Description:[/]")
+        details.append(agent.get('description', ''))
+    
+    # Add tags if available
+    if agent.get('tags'):
+        tags_str = ", ".join([f"[cyan]{tag}[/]" for tag in agent.get('tags', [])])
+        details.append("")
+        details.append(f"[bold]Tags:[/] {tags_str}")
+    
+    # Add domains if available
+    if agent.get('domains'):
+        domains_str = ", ".join([f"[green]{domain}[/]" for domain in agent.get('domains', [])])
+        details.append("")
+        details.append(f"[bold]Domains:[/] {domains_str}")
+    
+    # Add team members if this is a team
+    if agent.get('is_team') and agent.get('members'):
+        details.append("")
+        details.append(f"[bold]Team Members:[/] {len(agent.get('members', []))} agents")
+        details.append(f"[bold]Team Mode:[/] {agent.get('mode', 'N/A')}")
+    
+    # Add DID information if available
+    if agent.get('did'):
+        details.append("")
+        details.append("[bold]Verification:[/]")
+        details.append(f"DID: {agent.get('did', 'N/A')}")
+    
+    # Display the panel
+    console.print(Panel(
+        "\n".join(details),
+        title=title,
+        border_style="green",
+        box=ROUNDED,
+        padding=(1, 2)
+    ))
 
 
 if __name__ == "__main__":
