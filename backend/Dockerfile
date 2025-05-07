@@ -1,32 +1,32 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
-# Set Python to run in unbuffered mode
-ENV PYTHONUNBUFFERED=1
+FROM base AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.4.9 /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
+COPY uv.lock pyproject.toml /app/
 
-# Copy dependency files first
-COPY pyproject.toml README.md ./
-COPY uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --frozen --no-install-project --no-dev
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --frozen --no-dev
 
-# Install dependencies and uvicorn explicitly
-RUN uv pip install -r uv.lock && \
-    pip install uvicorn
+FROM base
+WORKDIR /app
+COPY --from=builder /app /app
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy application code
-COPY . .
+# Create non-root user with explicit UID/GID
+RUN groupadd -g 1001 appgroup && \
+    useradd -m -u 1001 -g appgroup -s /bin/bash appuser && \
+    chown -R appuser:appgroup /app
 
-# Create a non-root user
-RUN adduser --disabled-password --gecos "" appuser && \
-    chown -R appuser:appuser /app
-
-# Use non-root user
 USER appuser
 
 EXPOSE 8000
 
-# Run with python -m to ensure correct paths
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the full module path to ensure the app can be found
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
