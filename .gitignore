@@ -78,3 +78,7 @@ frontend/node_modules/*
 # Generated files
 *.bak
 
+#backend
+backend/.env
+
+
