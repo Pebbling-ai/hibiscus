@@ -1,3 +1,0 @@
-2025-05-03T00:03:37.093881+0200 | DEBUG | Using connection string (masked for security)
-2025-05-03T00:03:37.094456+0200 | ERROR | ❌ Failed to connect to database: invalid DSN: scheme is expected to be either "postgresql" or "postgres", got ''
-2025-05-03T00:03:37.095790+0200 | ERROR | Error in main: invalid DSN: scheme is expected to be either "postgresql" or "postgres", got ''
