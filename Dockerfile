@@ -8,10 +8,10 @@ WORKDIR /app
 
 COPY uv.lock pyproject.toml /app/
 
-RUN --mount=type=cache,id=fe3f0e24-a271-4cd7-975c-6ff6e265bbf1,target=/root/.cache/uv \
+RUN --mount=type=cache,id=4e146df0-3644-4170-9090-61686c91dd9d,target=/root/.cache/uv \
   uv sync --frozen --no-install-project --no-dev
 COPY . /app
-RUN --mount=type=cache,id=fe3f0e24-a271-4cd7-975c-6ff6e265bbf1,target=/root/.cache/uv \
+RUN --mount=type=cache,id=4e146df0-3644-4170-9090-61686c91dd9d,target=/root/.cache/uv \
   uv sync --frozen --no-dev
 
 FROM base
