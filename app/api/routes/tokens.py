@@ -37,8 +37,23 @@ async def register_user(request: Request) -> ApiResponse:
         
         try:
             user_data = await request.json()
+            
+            # Check if email and full_name are present and not empty
+            email = user_data.get("email")
+            full_name = user_data.get("full_name")
+            
+            if not email:
+                raise ValueError("Email is required")
+            if not full_name:
+                raise ValueError("Full name is required")
+                
             # Validate user data using the UserBase model
-            user_base = UserBase(email=user_data.get("email", ""), full_name=user_data.get("full_name", ""))
+            user_base = UserBase(email=email, full_name=full_name)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
