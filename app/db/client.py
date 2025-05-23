@@ -408,19 +408,142 @@ class Database:
     @staticmethod
     async def delete_api_key(key_id: str, user_id: str) -> bool:
         """
-        Delete an API key.
+        Mark an API key as inactive instead of deleting it.
+        
+        Args:
+            key_id: The ID of the API key to mark as inactive
+            user_id: The ID of the user who owns the key
+            
+        Returns:
+            True if the key was updated, False if not found
         """
-        # Use Supabase
-        response = supabase.table(API_KEYS_TABLE)\
-            .delete()\
-            .eq("id", key_id)\
-            .eq("user_id", user_id)\
-            .execute()
+        try:
+            # Update the status to inactive instead of deleting
+            response = supabase.table(API_KEYS_TABLE).update({"status": "inactive"})\
+                .eq("id", key_id)\
+                .eq("user_id", user_id)\
+                .execute()
+            
+            if hasattr(response, "error") and response.error:
+                raise Exception(f"Error updating API key status: {response.error.message}")
+            
+            # Return True if at least one row was affected
+            return len(response.data) > 0
+        except Exception as e:
+            # Log the error and re-raise
+            print(f"Error marking API key as inactive: {str(e)}")
+            raise e
+        
+    @staticmethod
+    async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a user by their email address.
+        
+        Args:
+            email: The email address to look up
+            
+        Returns:
+            User data dictionary or None if not found
+        """
+        # Use Supabase to query the users table by email
+        response = supabase.table(USERS_TABLE).select("*").eq("email", email).execute()
         
         if hasattr(response, "error") and response.error:
-            raise Exception(f"Error deleting API key: {response.error.message}")
+            raise Exception(f"Error fetching user by email: {response.error.message}")
         
-        return len(response.data) > 0
+        # Return None if no user was found with this email
+        if not response.data:
+            return None
+            
+        # Return the first user with this email
+        return response.data[0]
+    
+    @staticmethod
+    async def create_user(email: str, full_name: str, session_id: str) -> Dict[str, Any]:
+        """
+        Register a new user with Clerk session ID.
+        
+        This method:
+        1. Creates a new user in the users table using the User model
+        2. Creates an API key record for the session in the api_keys table
+        
+        Args:
+            email: User's email address
+            full_name: User's full name
+            session_id: Clerk session ID from the X-API-Key header
+            
+        Returns:
+            Dictionary with user data
+        
+        Raises:
+            Exception: If a user with this email already exists
+        """
+        # Import here to avoid circular imports
+        from app.models.schemas import User
+        
+        # Check if a user with this email already exists
+        existing_user = await Database.get_user_by_email(email)
+        if existing_user:
+            raise Exception(f"User with email '{email}' already exists")
+        
+        # Generate a new user ID
+        user_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        
+        # Create the user using the User model
+        user_model = User(
+            id=user_id,
+            email=email,
+            full_name=full_name,
+            created_at=now,
+            updated_at=now
+        )
+        
+        # Convert to dict for database insertion
+        user = user_model.model_dump()
+        
+        try:
+            # Insert the user into the database
+            user_response = supabase.table(USERS_TABLE).insert(user).execute()
+            
+            if hasattr(user_response, "error") and user_response.error:
+                raise Exception(f"Error creating user: {user_response.error.message}")
+            
+            # Create an API key record for the session using the ApiKey model
+            api_key_model = ApiKey(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                key=session_id,
+                name="session",
+                created_at=now,
+                last_used_at=now,
+                expires_at=None,  # Session keys don't expire
+                status="active"
+            )
+            
+            # Convert to dict for database insertion
+            api_key = api_key_model.model_dump()
+            
+            # Insert the API key into the database
+            key_response = supabase.table(API_KEYS_TABLE).insert(api_key).execute()
+            
+            if hasattr(key_response, "error") and key_response.error:
+                # If API key creation fails, attempt to delete the user
+                supabase.table(USERS_TABLE).delete().eq("id", user_id).execute()
+                raise Exception(f"Error creating API key: {key_response.error.message}")
+        except Exception as e:
+            # If any error occurs, attempt to clean up by deleting the user
+            try:
+                supabase.table(USERS_TABLE).delete().eq("id", user_id).execute()
+            except:
+                pass  # Ignore cleanup errors
+            raise e  # Re-raise the original exception
+        
+        return {
+            "user_id": user_id,
+            "email": email,
+            "full_name": full_name
+        }
     
     # ===== Health Monitoring Methods =====
     

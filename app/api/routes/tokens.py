@@ -1,13 +1,84 @@
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query, Request
 from math import ceil
 
 from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
-from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse, PaginatedResponse, PaginationMetadata
+from app.models.schemas import ApiKeyCreate, ApiKeyResponse, ApiResponse, PaginatedResponse, PaginationMetadata, User , UserBase
 
 router = APIRouter(prefix="/user", tags=["user"])
+
+
+@router.post("/register", response_model=ApiResponse)
+async def register_user(request: Request) -> ApiResponse:
+    """
+    Register a new user with Clerk session ID.
+    
+    This endpoint receives user details from Clerk and:
+    1. Saves the user details to the users table using the User model
+    2. Saves the session ID to the api_keys table with name 'session'
+    
+    The frontend should send:
+    - User details (email, full_name)
+    - Clerk session ID in the X-API-Key header
+    """
+    try:
+        # Get the session ID from the header
+        session_id = request.headers.get("X-API-Key")
+        if not session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session ID is required in X-API-Key header"
+            )
+        
+        # Get the user data from the request body and validate with UserBase model
+     
+        
+        try:
+            user_data = await request.json()
+            
+            # Check if email and full_name are present and not empty
+            email = user_data.get("email")
+            full_name = user_data.get("full_name")
+            
+            if not email:
+                raise ValueError("Email is required")
+            if not full_name:
+                raise ValueError("Full name is required")
+                
+            # Validate user data using the UserBase model
+            user_base = UserBase(email=email, full_name=full_name)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid user data: {str(e)}"
+            )
+        
+        # Create the user using the Database client with validated data
+        user_result = await Database.create_user(
+            email=user_base.email,
+            full_name=user_base.full_name,
+            session_id=session_id
+        )
+        
+        return ApiResponse(
+            success=True,
+            message="User registered successfully",
+            data=user_result
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.post("/tokens", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED)
@@ -151,3 +222,4 @@ async def get_user_profile(
             "full_name": current_user["full_name"],
         },
     )
+
