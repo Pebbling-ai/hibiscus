@@ -1,3 +1,5 @@
+"""Database schema definitions for the Hibiscus application."""
+
 # Supabase Schema Definition
 SUPABASE_SCHEMA = {
     "tables": [

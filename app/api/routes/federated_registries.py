@@ -1,3 +1,5 @@
+"""API routes for managing federated registries and synchronizing agent data."""
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from math import ceil
 import httpx
@@ -22,9 +24,7 @@ async def list_federated_registries(
     size: int = Query(20, description="Page size", ge=1, le=100),
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    List all federated registries (requires authentication, paginated).
-    """
+    """List all federated registries (requires authentication, paginated)."""
     try:
         # Calculate offset from page and size
         offset = (page - 1) * size
@@ -57,9 +57,7 @@ async def add_federated_registry(
     registry: FederatedRegistryCreate,
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    Add a new federated registry (requires authentication).
-    """
+    """Add a new federated registry (requires authentication)."""
     try:
         # Validate the registry URL by making a request to it
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -91,9 +89,7 @@ async def sync_federated_registry(
     background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    Synchronize agents from a federated registry.
-    """
+    """Synchronize agents from a federated registry."""
     try:
         # Get the federated registry
         registry = await Database.get_federated_registry(registry_id)

@@ -28,6 +28,7 @@ AGENT_JSON_FIELDS = ["capabilities", "metadata", "links", "dependencies"]
 # Initialize Supabase client
 class SupabaseClient:
     """Singleton class to manage Supabase client instance."""
+
     _instance = None
     _client = None
 

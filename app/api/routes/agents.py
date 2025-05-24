@@ -1,3 +1,5 @@
+"""API routes for agent management and operations."""
+
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
@@ -23,7 +25,7 @@ _startup_has_run = False
 # Initialize Typesense collections on startup
 @router.on_event("startup")
 async def startup_event():
-    """Initialize Typesense collections and sync agents on startup"""
+    """Initialize Typesense collections and sync agents on startup."""
     global _startup_has_run
 
     # Skip if already run
@@ -98,6 +100,15 @@ async def create_agent(
     agent: AgentCreate,
     current_user=Depends(get_current_user_from_api_key),
 ):
+    """Create a new agent with the provided data.
+
+    Args:
+        agent: The agent data to create
+        current_user: The authenticated user creating the agent
+
+    Returns:
+        The created agent data
+    """
     try:
         # Convert Pydantic model to dict
         agent_data = agent.dict()
@@ -126,9 +137,7 @@ async def update_agent(
     agent_update: AgentUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user_from_api_key),
 ):
-    """
-    Update an existing agent (requires authentication and ownership).
-    """
+    """Update an existing agent (requires authentication and ownership)."""
     try:
         # Filter out None values to only update provided fields
         update_data = {k: v for k, v in agent_update.dict().items() if v is not None}

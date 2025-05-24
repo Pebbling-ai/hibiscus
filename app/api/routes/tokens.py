@@ -1,3 +1,5 @@
+"""API routes for user authentication, token management, and user profiles."""
+
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Query, Request
 from math import ceil
@@ -142,9 +144,7 @@ async def list_api_tokens(
     size: int = Query(20, description="Page size", ge=1, le=100),
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    List all API tokens for the authenticated user (paginated).
-    """
+    """List all API tokens for the authenticated user (paginated)."""
     try:
         # Calculate offset from page and size
         offset = (page - 1) * size
@@ -179,9 +179,7 @@ async def delete_api_token(
     token_id: str,
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    Delete an API token.
-    """
+    """Delete an API token."""
     try:
         # Delete the API key
         success = await Database.delete_api_key(
@@ -212,9 +210,7 @@ async def delete_api_token(
 async def get_user_profile(
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    Get the profile of the authenticated user.
-    """
+    """Get the profile of the authenticated user."""
     return ApiResponse(
         success=True,
         data={

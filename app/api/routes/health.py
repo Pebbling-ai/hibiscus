@@ -1,3 +1,5 @@
+"""API routes for agent health management and monitoring."""
+
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from math import ceil
@@ -39,9 +41,7 @@ async def agent_health_ping(
 
 @router.get("/agents/{agent_id}", response_model=List[AgentHealth])
 async def get_agent_health(agent_id: str):
-    """
-    Get the health status for a specific agent across all servers.
-    """
+    """Get the health status for a specific agent across all servers."""
     try:
         health_records = await Database.get_agent_health(agent_id)
         return health_records
@@ -58,9 +58,7 @@ async def list_agent_health(
     page: int = Query(1, description="Page number", ge=1),
     size: int = Query(20, description="Page size", ge=1, le=100),
 ):
-    """
-    List health status for all agents, optionally filtered by server.
-    """
+    """List health status for all agents, optionally filtered by server."""
     try:
         # Calculate offset from page and size
         offset = (page - 1) * size
@@ -99,9 +97,7 @@ async def list_agent_health(
 
 @router.get("/summary", response_model=List[AgentHealthSummary])
 async def get_agent_health_summary():
-    """
-    Get a summary of agent health status grouped by agent.
-    """
+    """Get a summary of agent health status grouped by agent."""
     try:
         summary = await Database.get_agent_health_summary()
         return summary

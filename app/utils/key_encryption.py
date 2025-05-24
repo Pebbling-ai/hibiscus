@@ -1,6 +1,4 @@
-"""
-Utility for securely encrypting and decrypting private keys.
-"""
+"""Utility for securely encrypting and decrypting private keys."""
 
 import os
 import base64

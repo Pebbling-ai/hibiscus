@@ -25,6 +25,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 class Auth:
     """Authentication handler for generating and validating tokens and API keys."""
+
     @staticmethod
     async def get_api_key(api_key: str = Depends(API_KEY_HEADER)) -> Dict[str, Any]:
         """Validate API key and return associated user data."""
