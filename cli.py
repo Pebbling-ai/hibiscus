@@ -1,3 +1,5 @@
+"""Command-line interface for Hibiscus Agent Registry."""
+
 import typer
 import os
 import json
@@ -28,6 +30,7 @@ app.add_typer(agent_app, name="agent")
 
 # Configuration
 class Config:
+    """Configuration for the CLI application."""
     api_url: str = os.environ.get("HIBISCUS_API_URL", "http://localhost:8000")
     api_key: Optional[str] = os.environ.get("HIBISCUS_API_KEY")
 
@@ -37,7 +40,7 @@ app_config = Config()
 
 # Helper functions
 def get_health_emoji(status):
-    """Return emoji based on health status"""
+    """Return emoji based on health status."""
     if status == "active":
         return ":green_circle:"
     elif status == "degraded":
@@ -81,7 +84,6 @@ def list_agents_cmd(
     output_json: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
     """List agents with optional filtering."""
-
     # This is an async function wrapper for the sync Typer command
     async def run_async():
         try:
@@ -251,7 +253,6 @@ def update_agent_cmd(
     output_json: bool = typer.Option(False, "--json", help="Output as JSON"),
 ):
     """Update an existing agent interactively."""
-
     # First, get the current agent data
     async def get_agent_async():
         try:

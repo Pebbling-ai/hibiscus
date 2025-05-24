@@ -1,6 +1,4 @@
-"""
-Utilities for working with Decentralized Identifiers (DIDs) and MLTS protocol.
-"""
+"""Utilities for working with Decentralized Identifiers (DIDs) and MLTS protocol."""
 
 import uuid
 import logging

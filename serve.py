@@ -1,3 +1,5 @@
+"""Serve the Hibiscus application using uvicorn."""
+
 from typing import Union
 import uvicorn
 from fastapi import FastAPI

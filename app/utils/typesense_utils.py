@@ -1,5 +1,5 @@
-"""
-Typesense utility functions for managing search operations.
+"""Typesense utility functions for managing search operations.
+
 This module provides an abstraction layer for Typesense operations.
 """
 
@@ -37,8 +37,8 @@ AGENT_SCHEMA = {
 
 
 class TypesenseClient:
-    """
-    A singleton client for Typesense operations.
+    """A singleton client for Typesense operations.
+    
     Manages initialization, collections, and document operations.
     """
 
@@ -47,8 +47,9 @@ class TypesenseClient:
 
     @classmethod
     def get_client(cls) -> Optional[typesense.Client]:
-        """
-        Get the initialized Typesense client instance.
+        """Get the initialized Typesense client instance.
+        
+        Returns the singleton instance of the Typesense client.
         Uses the Singleton pattern to ensure only one client exists.
 
         Returns:
@@ -59,9 +60,7 @@ class TypesenseClient:
         return cls._client
 
     def __init__(self):
-        """
-        Initialize the Typesense client with credentials from environment variables.
-        """
+        """Initialize the Typesense client with credentials from environment variables."""
         if TypesenseClient._instance is not None:
             raise Exception("TypesenseClient is a singleton. Use get_client() instead.")
 
@@ -378,9 +377,9 @@ class TypesenseClient:
     async def bulk_sync_agents(
         cls, agent_ids: List[str], fetch_agent_fn
     ) -> Dict[str, bool]:
-        """
-        Sync multiple specific agents from the database to Typesense,
-        skipping agents that already exist.
+        """Sync multiple specific agents from the database to Typesense.
+        
+        Skips agents that already exist in the Typesense index.
 
         Args:
             agent_ids: List of agent IDs to sync

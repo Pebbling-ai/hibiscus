@@ -40,7 +40,7 @@ repos:
     rev: '1.8.3'
     hooks:
       - id: bandit
-        args: ["-c", "bandit.yaml", "-r", "pebbling"]
+        args: ["-c", "bandit.yaml", "-r", "hibiscus"]
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0

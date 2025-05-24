@@ -1,3 +1,5 @@
+"""Authentication-related functionality for the Hibiscus application."""
+
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -22,11 +24,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 
 class Auth:
+    """Authentication handler for generating and validating tokens and API keys."""
     @staticmethod
     async def get_api_key(api_key: str = Depends(API_KEY_HEADER)) -> Dict[str, Any]:
-        """
-        Validate API key and return associated user data.
-        """
+        """Validate API key and return associated user data."""
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,9 +52,7 @@ class Auth:
     def create_access_token(
         data: Dict[str, Any], expires_delta: Optional[timedelta] = None
     ) -> str:
-        """
-        Create a JWT access token.
-        """
+        """Create a JWT access token with the given data and expiration."""
         to_encode = data.copy()
 
         if expires_delta:
@@ -70,9 +69,7 @@ class Auth:
     async def generate_api_key(
         user_id: str, name: str, expires_at: Optional[datetime] = None
     ) -> Dict[str, Any]:
-        """
-        Generate a new API key for a user.
-        """
+        """Generate a new API key for a user."""
         # Generate API key
         return await Database.create_api_key(
             user_id, name, expires_at.isoformat() if expires_at else None
@@ -82,7 +79,5 @@ class Auth:
 async def get_current_user_from_api_key(
     api_key_data: Dict[str, Any] = Depends(Auth.get_api_key),
 ) -> Dict[str, Any]:
-    """
-    Get current user from API key.
-    """
+    """Extract the current user from a validated API key."""
     return api_key_data["user"]

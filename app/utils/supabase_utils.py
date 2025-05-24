@@ -1,3 +1,5 @@
+"""Utilities for interacting with Supabase database service."""
+
 import os
 import json
 import logging
@@ -25,6 +27,7 @@ AGENT_JSON_FIELDS = ["capabilities", "metadata", "links", "dependencies"]
 
 # Initialize Supabase client
 class SupabaseClient:
+    """Singleton class to manage Supabase client instance."""
     _instance = None
     _client = None
 
@@ -32,6 +35,7 @@ class SupabaseClient:
     def get_client(cls) -> Optional[Client]:
         """
         Get the initialized Supabase client instance.
+        
         Uses the Singleton pattern to ensure only one client exists.
 
         Returns:

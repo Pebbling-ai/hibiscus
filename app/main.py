@@ -1,3 +1,5 @@
+"""Main application module for the Hibiscus service."""
+
 import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +21,7 @@ ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",
 
 
 def create_application() -> FastAPI:
-    """
-    Create and configure FastAPI application.
-    """
+    """Create and configure FastAPI application."""
     app = FastAPI(
         title=APP_TITLE,
         description=APP_DESCRIPTION,
