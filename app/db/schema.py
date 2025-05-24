@@ -7,40 +7,85 @@ SUPABASE_SCHEMA = {
                 {"name": "id", "type": "uuid", "primaryKey": True},
                 {"name": "email", "type": "text", "notNull": True, "unique": True},
                 {"name": "full_name", "type": "text", "notNull": True},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
+                {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
                 {"name": "updated_at", "type": "timestamp with time zone"},
-            ]
+            ],
         },
         {
             "name": "api_keys",
             "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
-                {"name": "user_id", "type": "uuid", "notNull": True, "references": {"table": "users", "column": "id"}},
+                {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": True,
+                    "default": "gen_random_uuid()",
+                },
+                {
+                    "name": "user_id",
+                    "type": "uuid",
+                    "notNull": True,
+                    "references": {"table": "users", "column": "id"},
+                },
                 {"name": "key", "type": "text", "notNull": True, "unique": True},
                 {"name": "name", "type": "text", "notNull": True},
                 {"name": "description", "type": "text"},
-                {"name": "is_active", "type": "boolean", "notNull": True, "default": True},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
+                {
+                    "name": "is_active",
+                    "type": "boolean",
+                    "notNull": True,
+                    "default": True,
+                },
+                {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
                 {"name": "last_used_at", "type": "timestamp with time zone"},
                 {"name": "expires_at", "type": "timestamp with time zone"},
-            ]
+            ],
         },
         {
             "name": "federated_registries",
             "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
+                {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": True,
+                    "default": "gen_random_uuid()",
+                },
                 {"name": "name", "type": "text", "notNull": True},
                 {"name": "url", "type": "text", "notNull": True, "unique": True},
                 {"name": "api_key", "type": "text"},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
+                {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
                 {"name": "last_synced_at", "type": "timestamp with time zone"},
-            ]
+            ],
         },
         {
             "name": "agents",
             "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
-                {"name": "user_id", "type": "uuid", "notNull": True, "references": {"table": "users", "column": "id"}},
+                {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": True,
+                    "default": "gen_random_uuid()",
+                },
+                {
+                    "name": "user_id",
+                    "type": "uuid",
+                    "notNull": True,
+                    "references": {"table": "users", "column": "id"},
+                },
                 {"name": "name", "type": "text", "notNull": True},
                 {"name": "description", "type": "text", "notNull": True},
                 {"name": "documentation", "type": "text"},
@@ -56,54 +101,124 @@ SUPABASE_SCHEMA = {
                 {"name": "api_endpoint", "type": "text"},
                 {"name": "website_url", "type": "text"},
                 {"name": "logo_url", "type": "text"},
-                {"name": "is_federated", "type": "boolean", "notNull": True, "default": False},
+                {
+                    "name": "is_federated",
+                    "type": "boolean",
+                    "notNull": True,
+                    "default": False,
+                },
                 {"name": "federation_source", "type": "text"},
-                {"name": "registry_id", "type": "uuid", "references": {"table": "federated_registries", "column": "id"}},
+                {
+                    "name": "registry_id",
+                    "type": "uuid",
+                    "references": {"table": "federated_registries", "column": "id"},
+                },
                 {"name": "is_team", "type": "boolean", "default": False},
                 {"name": "members", "type": "uuid[]"},
-                {"name": "mode", "type": "text", "check": "mode IN ('collaborate', 'coordinate', 'route')"},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
-                {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
-            ]
+                {
+                    "name": "mode",
+                    "type": "text",
+                    "check": "mode IN ('collaborate', 'coordinate', 'route')",
+                },
+                {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
+                {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "default": "now()",
+                },
+            ],
         },
         {
             "name": "agent_verification",
             "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
-                {"name": "agent_id", "type": "uuid", "notNull": True, "references": {"table": "agents", "column": "id"}},
+                {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": True,
+                    "default": "gen_random_uuid()",
+                },
+                {
+                    "name": "agent_id",
+                    "type": "uuid",
+                    "notNull": True,
+                    "references": {"table": "agents", "column": "id"},
+                },
                 {"name": "did", "type": "text", "notNull": True, "unique": True},
                 {"name": "did_document", "type": "jsonb"},
                 {"name": "public_key", "type": "text", "notNull": True},
                 {"name": "certificate", "type": "text"},
                 {"name": "key_type", "type": "text", "notNull": True, "default": "rsa"},
-                {"name": "verification_method", "type": "text", "notNull": True, "default": "mlts"},
+                {
+                    "name": "verification_method",
+                    "type": "text",
+                    "notNull": True,
+                    "default": "mlts",
+                },
                 {"name": "encrypted_private_key", "type": "text"},
                 {"name": "encryption_type", "type": "text", "default": "AES-256-GCM"},
                 {"name": "key_reference", "type": "text"},
                 {"name": "encryption_metadata", "type": "jsonb"},
                 {"name": "private_key_path", "type": "text"},
                 {"name": "key_metadata", "type": "jsonb"},
-                {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
-                {"name": "updated_at", "type": "timestamp with time zone", "default": "now()"},
-            ]
+                {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
+                {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "default": "now()",
+                },
+            ],
         },
         {
             "name": "agent_health",
             "columns": [
-                {"name": "id", "type": "uuid", "primaryKey": True, "default": "gen_random_uuid()"},
-                {"name": "agent_id", "type": "uuid", "notNull": True, "references": {"table": "agents", "column": "id"}},
+                {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": True,
+                    "default": "gen_random_uuid()",
+                },
+                {
+                    "name": "agent_id",
+                    "type": "uuid",
+                    "notNull": True,
+                    "references": {"table": "agents", "column": "id"},
+                },
                 {"name": "server_id", "type": "text", "notNull": True},
-                {"name": "status", "type": "text", "notNull": True, "default": "active"},
+                {
+                    "name": "status",
+                    "type": "text",
+                    "notNull": True,
+                    "default": "active",
+                },
                 {"name": "metadata", "type": "jsonb"},
-                {"name": "last_ping_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"}
-            ]
-        }
+                {
+                    "name": "last_ping_at",
+                    "type": "timestamp with time zone",
+                    "notNull": True,
+                    "default": "now()",
+                },
+            ],
+        },
     ],
     "indexes": [
         {"table": "agents", "columns": ["name"], "method": "btree"},
         # For the GIN index, we need a different approach
         # This will create a GIN index named idx_agents_description_gin_tsvector
-        {"table": "agents", "name": "idx_agents_description_gin_tsvector", "sql": "CREATE INDEX IF NOT EXISTS idx_agents_description_gin_tsvector ON agents USING gin (to_tsvector('english', description))"},
+        {
+            "table": "agents",
+            "name": "idx_agents_description_gin_tsvector",
+            "sql": "CREATE INDEX IF NOT EXISTS idx_agents_description_gin_tsvector ON agents USING gin (to_tsvector('english', description))",
+        },
         {"table": "agents", "columns": ["did"], "method": "btree"},
         {"table": "api_keys", "columns": ["user_id"], "method": "btree"},
         {"table": "agent_verification", "columns": ["agent_id"], "method": "btree"},
@@ -116,84 +231,84 @@ SUPABASE_SCHEMA = {
             "name": "agents_select_policy",
             "definition": "SELECT",
             "using": "TRUE",
-            "check": "TRUE"
+            "check": "TRUE",
         },
         {
             "table": "agents",
             "name": "agents_insert_policy",
             "definition": "INSERT",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "agents",
             "name": "agents_update_policy",
             "definition": "UPDATE",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "agents",
             "name": "agents_delete_policy",
             "definition": "DELETE",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "api_keys",
             "name": "api_keys_select_policy",
             "definition": "SELECT",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "api_keys",
             "name": "api_keys_insert_policy",
             "definition": "INSERT",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "api_keys",
             "name": "api_keys_delete_policy",
             "definition": "DELETE",
             "using": "auth.uid() = user_id",
-            "check": "auth.uid() = user_id"
+            "check": "auth.uid() = user_id",
         },
         {
             "table": "agent_verification",
             "name": "agent_verification_select_policy",
             "definition": "SELECT",
             "using": "TRUE",
-            "check": "TRUE"
+            "check": "TRUE",
         },
         {
             "table": "agent_verification",
             "name": "agent_verification_insert_policy",
             "definition": "INSERT",
             "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
-            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
         },
         {
             "table": "agent_verification",
             "name": "agent_verification_update_policy",
             "definition": "UPDATE",
             "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
-            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
         },
         {
             "table": "agent_health",
             "name": "agent_health_select_policy",
             "definition": "SELECT",
             "using": "TRUE",
-            "check": "TRUE"
+            "check": "TRUE",
         },
         {
             "table": "agent_health",
             "name": "agent_health_insert_policy",
             "definition": "INSERT",
             "using": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
-            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())"
-        }
-    ]
+            "check": "EXISTS (SELECT 1 FROM agents WHERE id = agent_id AND user_id = auth.uid())",
+        },
+    ],
 }

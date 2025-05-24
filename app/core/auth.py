@@ -32,48 +32,56 @@ class Auth:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="API key is missing",
             )
-        
+
         # Validate API key against database
         key_data = await Database.validate_api_key(api_key)
-        
+
         if not key_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key",
             )
-        
+
         # Update last_used_at timestamp
         # This would be implemented in the Database class
-        
+
         return key_data
 
     @staticmethod
-    def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_access_token(
+        data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """
         Create a JWT access token.
         """
         to_encode = data.copy()
-        
+
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        
+
         to_encode.update({"exp": expire})
         encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        
+
         return encoded_jwt
 
     @staticmethod
-    async def generate_api_key(user_id: str, name: str, expires_at: Optional[datetime] = None) -> Dict[str, Any]:
+    async def generate_api_key(
+        user_id: str, name: str, expires_at: Optional[datetime] = None
+    ) -> Dict[str, Any]:
         """
         Generate a new API key for a user.
         """
         # Generate API key
-        return await Database.create_api_key(user_id, name, expires_at.isoformat() if expires_at else None)
+        return await Database.create_api_key(
+            user_id, name, expires_at.isoformat() if expires_at else None
+        )
 
 
-async def get_current_user_from_api_key(api_key_data: Dict[str, Any] = Depends(Auth.get_api_key)) -> Dict[str, Any]:
+async def get_current_user_from_api_key(
+    api_key_data: Dict[str, Any] = Depends(Auth.get_api_key),
+) -> Dict[str, Any]:
     """
     Get current user from API key.
     """

@@ -42,89 +42,89 @@ class TestKeyEncryption:
         """Test initializing with an explicitly provided key"""
         encryptor = KeyEncryption(master_key=TEST_MASTER_KEY)
         assert encryptor.master_key == TEST_MASTER_KEY
-    
+
     def test_initialization_with_env_var(self):
         """Test initializing with a key from environment variable"""
         with patch.dict(os.environ, {"MASTER_ENCRYPTION_KEY": TEST_MASTER_KEY}):
             encryptor = KeyEncryption()
             assert encryptor.master_key == TEST_MASTER_KEY
-    
+
     def test_initialization_error_no_key(self):
         """Test that initialization fails when no key is provided"""
         with patch.dict(os.environ, clear=True):
             with pytest.raises(ValueError) as excinfo:
                 KeyEncryption()
             assert "Master encryption key must be provided" in str(excinfo.value)
-    
+
     def test_encrypt_decrypt_cycle(self):
         """Test a full encrypt-decrypt cycle"""
         encryptor = KeyEncryption(master_key=TEST_MASTER_KEY)
-        
+
         # Encrypt the test private key
         encrypted_data = encryptor.encrypt_private_key(TEST_PRIVATE_KEY)
-        
+
         # Verify the encrypted data structure
         assert "encrypted_key" in encrypted_data
         assert "salt" in encrypted_data
         assert "nonce" in encrypted_data
         assert "method" in encrypted_data
         assert encrypted_data["method"] == "AES-256-GCM"
-        
+
         # Verify the data is actually encrypted
         encrypted_key = base64.b64decode(encrypted_data["encrypted_key"])
         assert TEST_PRIVATE_KEY.encode() != encrypted_key
-        
+
         # Decrypt the private key
         decrypted_key = encryptor.decrypt_private_key(encrypted_data)
-        
+
         # Verify the decrypted key matches the original
         assert decrypted_key == TEST_PRIVATE_KEY
-    
+
     def test_encrypt_decrypt_different_keys(self):
         """Test that encryption/decryption fails with different keys"""
         # Encrypt with one key
         encryptor1 = KeyEncryption(master_key=TEST_MASTER_KEY)
         encrypted_data = encryptor1.encrypt_private_key(TEST_PRIVATE_KEY)
-        
+
         # Try to decrypt with a different key
         encryptor2 = KeyEncryption(master_key="different_key")
-        
+
         # This should raise an exception during decryption
         with pytest.raises(Exception):
             encryptor2.decrypt_private_key(encrypted_data)
-    
+
     def test_derive_key(self):
         """Test key derivation produces consistent results"""
         encryptor = KeyEncryption(master_key=TEST_MASTER_KEY)
         salt = b"test_salt_12345678"
-        
+
         # Derive key twice with the same salt
         key1 = encryptor._derive_key(salt)
         key2 = encryptor._derive_key(salt)
-        
+
         # Keys should be identical when using the same salt
         assert key1 == key2
-        
+
         # Keys should be different with different salts
         different_salt = b"different_salt_123"
         key3 = encryptor._derive_key(different_salt)
         assert key1 != key3
-    
+
     def test_encryption_consistency(self):
         """Test that encryption with the same key and nonce is consistent"""
         encryptor = KeyEncryption(master_key=TEST_MASTER_KEY)
-        
+
         # Mock the random functions to return consistent values
         fixed_salt = b"fixed_salt_value_1"
         fixed_nonce = b"fixed_nonce_1"
-        
-        with patch('os.urandom', side_effect=[fixed_salt, fixed_nonce]):
+
+        with patch("os.urandom", side_effect=[fixed_salt, fixed_nonce]):
             # First encryption
             encrypted_data1 = encryptor.encrypt_private_key(TEST_PRIVATE_KEY)
-        
-        with patch('os.urandom', side_effect=[fixed_salt, fixed_nonce]):
+
+        with patch("os.urandom", side_effect=[fixed_salt, fixed_nonce]):
             # Second encryption with same salt/nonce
             encrypted_data2 = encryptor.encrypt_private_key(TEST_PRIVATE_KEY)
-        
+
         # The encrypted data should be identical
         assert encrypted_data1["encrypted_key"] == encrypted_data2["encrypted_key"]

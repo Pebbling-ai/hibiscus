@@ -80,5 +80,3 @@ frontend/node_modules/*
 
 #backend
 backend/.env
-
-

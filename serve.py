@@ -7,6 +7,7 @@ from rich.console import Console
 
 console = Console()
 
+
 def serve_app(
     app: Union[str, FastAPI],
     *,
@@ -17,7 +18,7 @@ def serve_app(
 ):
     """
     Serve the Hibiscus Agent Registry API.
-    
+
     Args:
         app: The FastAPI application or import string
         host: Host to bind the server to
@@ -28,7 +29,7 @@ def serve_app(
     # Create a panel with the API information
     api_url = f"http://{host}:{port}"
     docs_url = f"{api_url}/docs"
-    
+
     panel = Panel(
         f"[bold green]API URL:[/bold green] {api_url}\n"
         f"[bold green]API Docs:[/bold green] [link={docs_url}]{docs_url}[/link]",
@@ -41,6 +42,6 @@ def serve_app(
 
     # Print the panel
     console.print(panel)
-    
+
     # Start the server
     uvicorn.run(app=app, host=host, port=port, reload=reload, **kwargs)

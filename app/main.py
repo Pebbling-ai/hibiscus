@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from app.api.routes import agents, federated_registries, tokens, health
-from app.core.auth import API_KEY_HEADER
 
 # Load environment variables
 load_dotenv()
@@ -28,7 +27,7 @@ def create_application() -> FastAPI:
         description=APP_DESCRIPTION,
         version=APP_VERSION,
     )
-    
+
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
@@ -37,13 +36,13 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Include routers
     app.include_router(agents.router)
     app.include_router(federated_registries.router)
     app.include_router(tokens.router)
     app.include_router(health.router)
-    
+
     # Error handling
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
@@ -54,7 +53,7 @@ def create_application() -> FastAPI:
                 "message": f"An unexpected error occurred: {str(exc)}",
             },
         )
-    
+
     # Root endpoint
     @app.get("/")
     async def root():
@@ -64,9 +63,9 @@ def create_application() -> FastAPI:
             "data": {
                 "version": APP_VERSION,
                 "documentation": "/docs",
-            }
+            },
         }
-    
+
     return app
 
 
