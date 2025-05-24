@@ -72,6 +72,7 @@ async def search_agents(
     agents = await Database.list_agents(
         limit=page_size,
         offset=offset,
+        verification_data_required=False,
         is_team=is_team,
         agent_ids=agent_ids
     )

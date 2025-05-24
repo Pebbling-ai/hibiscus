@@ -70,6 +70,7 @@ class Database:
     async def list_agents(
         limit: int = 100, 
         offset: int = 0, 
+        verification_data_required: bool = False,
         is_team: Optional[bool] = None,
         agent_ids: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
@@ -80,14 +81,17 @@ class Database:
         Args:
             limit: Maximum number of items to return
             offset: Number of items to skip (for pagination)
+            verification_data_required: Whether to include verification data
             is_team: Optional filter for teams
             agent_ids: Optional list of agent IDs to filter by
         
         Returns:
             List of agent data dictionaries
         """
-        # Use Supabase
-        query = supabase.table(AGENTS_TABLE).select("*")
+        # Use Supabase - select only needed columns instead of all
+        query = supabase.table(AGENTS_TABLE).select(
+            "id, name, description, is_team, domains, tags, version, author_name, created_at, updated_at, user_id"
+        )
         
         # Apply team filter if provided
         if is_team is not None:
@@ -116,25 +120,26 @@ class Database:
             # Parse agent JSON fields
             parsed_agent = parse_json_fields(agent)
             
-            # Fetch verification data for this agent
-            verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent["id"]).execute()
-            
-            if not hasattr(verification_query, "error") and verification_query.data:
-                verification = verification_query.data[0]
+            if verification_data_required:
+                # Fetch verification data for this agent
+                verification_query = supabase.table(AGENT_VERIFICATION_TABLE).select("*").eq("agent_id", agent["id"]).execute()
                 
-                # Add verification fields to agent data
-                parsed_agent["did"] = verification.get("did")
-                parsed_agent["public_key"] = verification.get("public_key")
-                
-                # Parse did_document if it exists
-                if verification.get("did_document"):
-                    if isinstance(verification["did_document"], str):
-                        try:
-                            parsed_agent["did_document"] = json.loads(verification["did_document"])
-                        except json.JSONDecodeError:
+                if not hasattr(verification_query, "error") and verification_query.data:
+                    verification = verification_query.data[0]
+                    
+                    # Add verification fields to agent data
+                    parsed_agent["did"] = verification.get("did")
+                    parsed_agent["public_key"] = verification.get("public_key")
+                    
+                    # Parse did_document if it exists
+                    if verification.get("did_document"):
+                        if isinstance(verification["did_document"], str):
+                            try:
+                                parsed_agent["did_document"] = json.loads(verification["did_document"])
+                            except json.JSONDecodeError:
+                                parsed_agent["did_document"] = verification["did_document"]
+                        else:
                             parsed_agent["did_document"] = verification["did_document"]
-                    else:
-                        parsed_agent["did_document"] = verification["did_document"]
             
             # Fetch health data for this agent
             health_data = await Database._fetch_agent_health_data(agent["id"])
