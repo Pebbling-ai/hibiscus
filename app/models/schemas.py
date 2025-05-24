@@ -23,6 +23,7 @@ class ApiKey(ApiKeyBase):
     key: str
     created_at: datetime
     last_used_at: Optional[datetime] = None
+    status: str = "active"
 
 class ApiKeyCreate(BaseModel):
     name: str
@@ -36,6 +37,7 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
     description: Optional[str] = None
+    status: str = "active"
 
 # Agent Models
 class Capability(BaseModel):
