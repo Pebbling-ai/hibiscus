@@ -16,7 +16,7 @@
             "name": "Python: CLI Start",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/backend/cli.py",
+            "program": "${workspaceFolder}/cli.py",
             "args": ["start"],
             "console": "integratedTerminal",
             "justMyCode": false,

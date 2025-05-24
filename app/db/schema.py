@@ -19,6 +19,7 @@ SUPABASE_SCHEMA = {
                 {"name": "key", "type": "text", "notNull": True, "unique": True},
                 {"name": "name", "type": "text", "notNull": True},
                 {"name": "description", "type": "text"},
+                {"name": "is_active", "type": "boolean", "notNull": True, "default": True},
                 {"name": "created_at", "type": "timestamp with time zone", "notNull": True, "default": "now()"},
                 {"name": "last_used_at", "type": "timestamp with time zone"},
                 {"name": "expires_at", "type": "timestamp with time zone"},

@@ -8,16 +8,16 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/.env
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
       # Note: With the non-root user in the Dockerfile, we need to ensure proper permissions
       # The source code is now mounted as read-only to avoid permission issues
-      - ./backend:/app:ro
+      - .:/app:ro
       # Create a volume for the .venv to persist between container restarts
       # This avoids rebuilding the virtual environment each time
-      - backend-venv:/app/.venv
+      - venv:/app/.venv
     user: appuser
     restart: unless-stopped
     healthcheck:
@@ -28,5 +28,5 @@ services:
       start_period: 20s
 
 volumes:
-  backend-venv:
+  venv:
     # Named volume for the virtual environment

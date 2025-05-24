@@ -303,7 +303,7 @@ class Database:
             Dictionary with API key and user data, or None if invalid
         """
         # Use Supabase
-        response = supabase.table(API_KEYS_TABLE).select("*").eq("key", api_key).execute()
+        response = supabase.table(API_KEYS_TABLE).select("*").eq("key", api_key).eq("is_active", True).execute()
         
         if hasattr(response, "error") and response.error:
             raise Exception(f"Error validating API key: {response.error.message}")
@@ -336,6 +336,7 @@ class Database:
         user_id: str, 
         name: str, 
         expires_at: Optional[str] = None, 
+        is_active: Optional[bool] = True,
         description: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -345,6 +346,7 @@ class Database:
             user_id: The ID of the user who owns the key
             name: A user-friendly name for the key
             expires_at: Optional ISO-format datetime string when the key expires
+            is_active: Optional boolean to indicate if the key is active
             description: Optional description of what the key is used for
             
         Returns:
@@ -358,6 +360,7 @@ class Database:
             "user_id": user_id,
             "key": key,
             "name": name,
+            "is_active": is_active,
             "description": description,
             "created_at": now,
             "last_used_at": None,
@@ -412,7 +415,7 @@ class Database:
         """
         # Use Supabase
         response = supabase.table(API_KEYS_TABLE)\
-            .delete()\
+            .update({"is_active": False})\
             .eq("id", key_id)\
             .eq("user_id", user_id)\
             .execute()

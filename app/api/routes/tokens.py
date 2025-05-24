@@ -35,6 +35,7 @@ async def create_api_token(
             user_id=current_user["id"],
             name=api_key_data.name,
             expires_at=expires_at.isoformat() if expires_at else None,
+            is_active=True,
             description=api_key_data.description if hasattr(api_key_data, "description") else None,
         )
         

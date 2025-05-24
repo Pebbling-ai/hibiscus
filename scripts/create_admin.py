@@ -25,11 +25,11 @@ API_KEYS_TABLE = "api_keys"
 
 # Initialize Supabase client
 # For admin operations, we need to use the service_role key to bypass RLS
-supabase_url = os.getenv("supabase_URL")
-supabase_key = os.getenv("supabase_SERVICE_ROLE_KEY", os.getenv("supabase_KEY"))
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_KEY"))
 
 if not supabase_url or not supabase_key:
-    console.print("[bold red]Error: Missing Supabase credentials. Set supabase_URL and supabase_SERVICE_ROLE_KEY in .env file.[/bold red]")
+    console.print("[bold red]Error: Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env file.[/bold red]")
     exit(1)
 
 # Connect with service role to bypass RLS
@@ -65,6 +65,7 @@ async def create_initial_admin(email: str, name: str, expire_days: int = 365) ->
         "description": "Auto-generated initial admin key",
         "created_at": now,
         "last_used_at": None,
+        "is_active": True,
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=expire_days)).isoformat()  # 1 year expiry
     }
     
