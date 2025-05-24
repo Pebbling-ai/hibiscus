@@ -1,11 +1,12 @@
-"""
-Supabase utilities for connecting to and interacting with Supabase database.
-This module provides a client and constants for working with Supabase.
-"""
 import os
-from typing import Dict, List, Optional, Any, Union, Callable
-from dotenv import load_dotenv
+import json
+import logging
+from typing import Dict, List, Optional, Any, Union, Tuple, Callable
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -18,108 +19,116 @@ FEDERATED_REGISTRIES_TABLE = "federated_registries"
 AGENT_HEALTH_TABLE = "agent_health"
 AGENT_VERIFICATION_TABLE = "agent_verification"
 
+# JSON fields that need parsing/serialization
+AGENT_JSON_FIELDS = ['capabilities', 'metadata', 'links', 'dependencies']
+
+# Initialize Supabase client
 class SupabaseClient:
-    """
-    A wrapper around the Supabase client to provide standardized access
-    to the database with proper error handling and connection management.
-    """
+    _instance = None
+    _client = None
+    
+    @classmethod
+    def get_client(cls) -> Optional[Client]:
+        """
+        Get the initialized Supabase client instance.
+        Uses the Singleton pattern to ensure only one client exists.
+        
+        Returns:
+            Client: The Supabase client instance or None if not configured
+        """
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._client
     
     def __init__(self):
-        """Initialize the Supabase client with credentials from environment variables."""
+        """Initialize the Supabase client using environment variables."""
+        if SupabaseClient._instance is not None:
+            raise Exception("This class is a singleton, use get_client() instead")
+        
+        SupabaseClient._instance = self
+        
+        # Get credentials from environment variables
         supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_KEY"))
         
         if not supabase_url or not supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
-        
-        self.client = create_client(supabase_url, supabase_key)
+            logger.warning("SUPABASE_URL and SUPABASE_KEY not set. Database operations will fail.")
+            SupabaseClient._client = None
+        else:
+            try:
+                SupabaseClient._client = create_client(supabase_url, supabase_key)
+                logger.info(f"Supabase client initialized with URL: {supabase_url}")
+            except Exception as e:
+                logger.error(f"Failed to initialize Supabase client: {str(e)}")
+                SupabaseClient._client = None
+
+
+def parse_json_fields(data: Dict[str, Any], fields: List[str] = AGENT_JSON_FIELDS) -> Dict[str, Any]:
+    """
+    Parse JSON fields that might be stored as strings.
     
-    def table(self, table_name: str) -> Client:
-        """
-        Get a reference to a table in the Supabase database.
+    Args:
+        data: The data dictionary containing potential JSON fields
+        fields: List of field names that should be parsed as JSON
         
-        Args:
-            table_name: The name of the table to access
-            
-        Returns:
-            A Supabase query builder for the specified table
-        """
-        return self.client.table(table_name)
+    Returns:
+        Dict with JSON fields properly parsed
+    """
+    result = data.copy()
     
-    def execute_query(self, table_name: str, query_fn: Callable[[Client], Any]) -> Any:
-        """
-        Execute a query against a Supabase table using a query function.
-        
-        Args:
-            table_name: The name of the table to query
-            query_fn: A function that takes a Supabase query builder and returns a query result
-            
-        Returns:
-            The result of the query function
-        """
-        table = self.table(table_name)
-        return query_fn(table)
+    for field in fields:
+        if field in result and isinstance(result[field], str):
+            try:
+                result[field] = json.loads(result[field])
+            except json.JSONDecodeError:
+                # Keep as string if parsing fails
+                pass
+                
+    return result
+
+
+def serialize_json_fields(data: Dict[str, Any], fields: List[str] = AGENT_JSON_FIELDS) -> Dict[str, Any]:
+    """
+    Serialize fields to JSON strings for storage in Supabase.
     
-    def insert(self, table_name: str, data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """
-        Insert data into a Supabase table.
+    Args:
+        data: The data dictionary containing fields to serialize
+        fields: List of field names that should be serialized to JSON
         
-        Args:
-            table_name: The name of the table to insert into
-            data: Dictionary or list of dictionaries containing the data to insert
-            
-        Returns:
-            The inserted data with any server-generated fields
-        """
-        return self.table(table_name).insert(data).execute()
+    Returns:
+        Dict with fields serialized to JSON strings
+    """
+    result = data.copy()
     
-    def select(self, table_name: str, columns: str = "*") -> Client:
-        """
-        Begin a SELECT query on a Supabase table.
-        
-        Args:
-            table_name: The name of the table to select from
-            columns: Comma-separated string of columns to select
-            
-        Returns:
-            A Supabase query builder for further query construction
-        """
-        return self.table(table_name).select(columns)
+    for field in fields:
+        if field in result and result[field] is not None:
+            if not isinstance(result[field], str):
+                result[field] = json.dumps(result[field])
+                
+    return result
+
+
+def execute_query(query_fn: Callable, error_message: str = "Database query failed"):
+    """
+    Execute a Supabase query and handle common error cases.
     
-    def update(self, table_name: str, data: Dict[str, Any]) -> Client:
-        """
-        Begin an UPDATE query on a Supabase table.
+    Args:
+        query_fn: Function that takes a Supabase client and returns a query
+        error_message: Custom error message prefix for exceptions
         
-        Args:
-            table_name: The name of the table to update
-            data: Dictionary containing the data to update
-            
-        Returns:
-            A Supabase query builder for further query construction
-        """
-        return self.table(table_name).update(data)
+    Returns:
+        The query response
+        
+    Raises:
+        Exception: If the query fails
+    """
+    client = SupabaseClient.get_client()
+    if client is None:
+        raise Exception("Supabase client not initialized")
+        
+    response = query_fn(client)
     
-    def delete(self, table_name: str) -> Client:
-        """
-        Begin a DELETE query on a Supabase table.
+    if hasattr(response, "error") and response.error:
+        raise Exception(f"{error_message}: {response.error.message}")
         
-        Args:
-            table_name: The name of the table to delete from
-            
-        Returns:
-            A Supabase query builder for further query construction
-        """
-        return self.table(table_name).delete()
-    
-    def rpc(self, function_name: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        """
-        Call a PostgreSQL stored procedure.
-        
-        Args:
-            function_name: The name of the function to call
-            params: Dictionary of parameters to pass to the function
-            
-        Returns:
-            The result of the function call
-        """
-        return self.client.rpc(function_name, params or {}).execute()
+    return response
