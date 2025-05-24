@@ -33,7 +33,7 @@ async def test_create_api_token_with_expiry_days(monkeypatch):
     # Mock the create_api_key method
     create_api_key_calls = []
 
-    async def mock_create_api_key(user_id, name, expires_at=None, description=None):
+    async def mock_create_api_key(user_id, name, expires_at=None, description=None, is_active=True):
         create_api_key_calls.append((user_id, name, expires_at, description))
 
         # Calculate expected expiry date for verification
@@ -100,7 +100,7 @@ async def test_create_api_token_permanent(monkeypatch):
     }
 
     # Mock the create_api_key method
-    async def mock_create_api_key(user_id, name, expires_at=None, description=None):
+    async def mock_create_api_key(user_id, name, expires_at=None, description=None, is_active=True):
         # Verify no expiry was set
         assert expires_at is None
 
@@ -150,7 +150,7 @@ async def test_create_api_token_with_absolute_expiry(monkeypatch):
     }
 
     # Mock the create_api_key method
-    async def mock_create_api_key(user_id, name, expires_at=None, description=None):
+    async def mock_create_api_key(user_id, name, expires_at=None, description=None, is_active=True):
         # For this test, we don't need to verify exact match since we're using days
         assert expires_at is not None
 
