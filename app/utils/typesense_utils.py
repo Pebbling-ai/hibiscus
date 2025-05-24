@@ -479,6 +479,39 @@ class TypesenseClient:
             return False
 
     @classmethod
+    async def sync_agents_to_search_index(cls) -> bool:
+        """
+        Synchronize all agents from the database to the search index.
+        
+        This method fetches all agents from the database and indexes them in Typesense.
+        Used during application startup to ensure the search index is up-to-date.
+        
+        Returns:
+            bool: True if synchronization was successful, False otherwise
+        """
+        from app.db.client import Database
+        
+        client = cls.get_client()
+        if not client:
+            logger.warning("Typesense client not initialized. Cannot sync agents.")
+            return False
+            
+        try:
+            # Use the sync_agents_from_database method with the Database.list_agents function
+            # This will fetch all agents and index them in Typesense
+            success = await cls.sync_agents_from_database(Database.list_agents)
+            
+            if success:
+                logger.info("Successfully synchronized agents to search index")
+            else:
+                logger.warning("Some errors occurred while synchronizing agents")
+                
+            return success
+        except Exception as e:
+            logger.error(f"Error synchronizing agents to search index: {str(e)}")
+            return False
+    
+    @classmethod
     def _convert_agent_to_document(cls, agent: Dict[str, Any]) -> Dict[str, Any]:
         """
         Convert agent data to a Typesense document format.

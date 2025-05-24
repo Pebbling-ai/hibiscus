@@ -12,11 +12,11 @@ dev:
 
 # Run tests
 test:
-	uv run pytest -n auto
+	PYTHONWARNINGS="ignore::DeprecationWarning" uv run pytest -n auto
 
 # Run tests with coverage
 coverage:
-	uv run pytest --cov=app --cov-report=term-missing -n auto
+	PYTHONWARNINGS="ignore::DeprecationWarning" uv run pytest --cov=app --cov-report=term-missing -n auto
 
 # Lint code using ruff and mypy
 lint:

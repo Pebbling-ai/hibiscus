@@ -5,9 +5,17 @@ This module contains shared fixtures and mocks used across the test suite.
 
 import pytest
 import uuid
+import warnings
 from datetime import datetime, timezone
 from unittest import mock
 import sys
+
+# Silence ALL deprecation warnings to avoid pytest_freezegun issues
+# This is the most effective way to handle the distutils deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Alternative approach that can be uncommented if needed:
+# warnings.filterwarnings("ignore", message=".*distutils Version classes are deprecated.*")
 
 # Mock the Supabase client
 sys.modules["supabase"] = mock.MagicMock()
