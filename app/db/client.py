@@ -1,5 +1,6 @@
 """
 Database client for accessing and managing data in Supabase.
+
 This module provides an abstraction layer over the Supabase database.
 """
 
@@ -82,6 +83,7 @@ class Database:
     ) -> List[Dict[str, Any]]:
         """
         List all agents with optional filtering and pagination.
+
         Include verification and health data from related tables.
 
         Args:
@@ -182,6 +184,7 @@ class Database:
     async def get_agent(agent_id: str) -> Optional[Dict[str, Any]]:
         """
         Get agent by ID and deserialize JSON fields.
+
         Include verification data from agent_verification table.
 
         Args:
@@ -428,9 +431,7 @@ class Database:
 
     @staticmethod
     async def count_api_keys(user_id: str) -> int:
-        """
-        Count the total number of API keys for a user.
-        """
+        """Count the total number of API keys for a user."""
         # Use Supabase
         query = (
             supabase.table(API_KEYS_TABLE)
@@ -449,9 +450,7 @@ class Database:
     async def list_api_keys(
         user_id: str, limit: int = 100, offset: int = 0
     ) -> List[Dict[str, Any]]:
-        """
-        List all API keys for a user with pagination.
-        """
+        """List all API keys for a user with pagination."""
         # Use Supabase
         query = supabase.table(API_KEYS_TABLE).select("*").eq("user_id", user_id)
 
@@ -467,9 +466,7 @@ class Database:
 
     @staticmethod
     async def delete_api_key(key_id: str, user_id: str) -> bool:
-        """
-        Delete an API key.
-        """
+        """Delete an API key."""
         # Use Supabase
         response = (
             supabase.table(API_KEYS_TABLE)
@@ -558,9 +555,7 @@ class Database:
     async def list_agent_health(
         limit: int = 100, offset: int = 0, server_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        List health status for all agents, optionally filtered by server.
-        """
+        """List health status for all agents, optionally filtered by server."""
         # Use Supabase
         query = supabase.table(AGENT_HEALTH_TABLE).select("*")
 
@@ -580,9 +575,7 @@ class Database:
 
     @staticmethod
     async def count_agent_health(server_id: Optional[str] = None) -> int:
-        """
-        Count the total number of agent health records.
-        """
+        """Count the total number of agent health records."""
         # Use Supabase
         query = supabase.table(AGENT_HEALTH_TABLE).select("id", count="exact")
 
@@ -601,6 +594,7 @@ class Database:
     async def get_agent_health_summary() -> List[Dict[str, Any]]:
         """
         Get a summary of agent health status grouped by agent.
+
         This requires joining with the agents table to get agent names.
         """
         # Get all health records

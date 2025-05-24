@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Database initialization script for Hibiscus backend.
+
+This script creates all necessary tables, indexes, and policies in the Supabase database.
+"""
+
 import os
 import asyncio
 import asyncpg
@@ -397,6 +402,7 @@ async def create_tables():
 
 
 async def main():
+    """Execute the database initialization process."""
     try:
         await create_tables()
     except Exception as e:

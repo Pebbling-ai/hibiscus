@@ -1,3 +1,8 @@
+"""Pytest configuration and fixtures for Hibiscus backend testing.
+
+This module contains shared fixtures and mocks used across the test suite.
+"""
+
 import pytest
 import uuid
 from datetime import datetime, timezone
@@ -26,6 +31,7 @@ with mock.patch("fastapi.Depends"):
 # Test fixtures that will be used across multiple test files
 @pytest.fixture
 def mock_current_user():
+    """Provide a mock User object for testing authentication scenarios."""
     return User(
         id=str(uuid.uuid4()),
         email="test@example.com",
@@ -36,6 +42,7 @@ def mock_current_user():
 
 @pytest.fixture
 def mock_api_key():
+    """Provide a mock ApiKey object for testing API key validation scenarios."""
     return ApiKey(
         id=str(uuid.uuid4()),
         user_id=str(uuid.uuid4()),
@@ -49,6 +56,7 @@ def mock_api_key():
 # Create a proper mock for FastAPI app without importing the actual app
 @pytest.fixture
 def test_app():
+    """Create a mock FastAPI application for testing endpoints."""
     # Mock FastAPI app
     from fastapi import FastAPI
 
@@ -69,6 +77,7 @@ def test_app():
 # Create a test client
 @pytest.fixture
 def client(test_app):
+    """Create a FastAPI TestClient instance for making test requests."""
     from fastapi.testclient import TestClient
 
     return TestClient(test_app)
@@ -77,6 +86,7 @@ def client(test_app):
 # Mock database responses
 @pytest.fixture
 def mock_database():
+    """Provide mock database data and responses for testing database operations."""
     # Sample data for tests
     federated_registries = [
         {
@@ -208,6 +218,7 @@ def mock_database():
 
 @pytest.fixture
 def mock_auth_dependency(mock_current_user):
+    """Create a mock authentication dependency that returns the mock user."""
     # Return a mock auth dependency function
     async def mock_get_current_user(*args, **kwargs):
         return mock_current_user

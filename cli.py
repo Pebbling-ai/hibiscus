@@ -31,6 +31,7 @@ app.add_typer(agent_app, name="agent")
 # Configuration
 class Config:
     """Configuration for the CLI application."""
+
     api_url: str = os.environ.get("HIBISCUS_API_URL", "http://localhost:8000")
     api_key: Optional[str] = os.environ.get("HIBISCUS_API_KEY")
 

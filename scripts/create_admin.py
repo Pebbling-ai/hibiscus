@@ -1,3 +1,8 @@
+"""Script for creating admin users in the Hibiscus backend system.
+
+This utility allows creating admin users with API keys for administrative access.
+"""
+
 import os
 import uuid
 import secrets
@@ -37,9 +42,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 
 async def create_initial_admin(email: str, name: str, expire_days: int = 365) -> str:
-    """
-    Create an initial admin user and API key in the database.
-    """
+    """Create an initial admin user and API key in the database."""
     # Generate UUIDs for user and API key
     user_id = str(uuid.uuid4())
     key_id = str(uuid.uuid4())
@@ -133,7 +136,6 @@ def create_admin(
     expire_days: int = typer.Option(365, help="API key expiration in days"),
 ):
     """Create an initial admin user with API key in the Hibiscus database."""
-
     # Show startup banner
     console.print(
         Panel.fit(

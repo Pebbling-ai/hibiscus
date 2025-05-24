@@ -1,6 +1,6 @@
 """Data schemas for the Hibiscus application."""
 
-from typing import List, Optional, Dict, Any, Literal, Generic, TypeVar
+from typing import List, Optional, Dict, Any, Literal, TypeVar, Generic
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -172,6 +172,7 @@ class Agent(AgentBase):
 
     class Config:
         """Pydantic configuration for the model."""
+
         from_attributes = True
 
 
@@ -199,6 +200,7 @@ class AgentHealth(AgentHealthBase):
 
     class Config:
         """Pydantic configuration for the model."""
+
         from_attributes = True
 
 
@@ -236,6 +238,7 @@ class FederatedRegistry(FederatedRegistryBase):
 
     class Config:
         """Pydantic configuration for the model."""
+
         from_attributes = True
 
 
@@ -260,3 +263,16 @@ class PaginationMetadata(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+# Pagination Response Model
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Paginated response model."""
+
+    items: List[T]
+    metadata: PaginationMetadata
+
+    class Config:
+        """Pydantic configuration for the model."""
+
+        from_attributes = True

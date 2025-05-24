@@ -10,8 +10,8 @@ from app.models.schemas import (
     FederatedRegistry,
     FederatedRegistryCreate,
     ApiResponse,
-    PaginatedResponse,
     PaginationMetadata,
+    PaginatedResponse,
     Agent,
 )
 
@@ -123,9 +123,7 @@ async def list_federated_registry_agents(
     size: int = Query(20, description="Page size", ge=1, le=100),
     current_user=Depends(get_current_user_from_api_key),
 ):
-    """
-    List all agents from a specific federated registry.
-    """
+    """List all agents from a specific federated registry."""
     try:
         # Calculate offset from page and size
         offset = (page - 1) * size
@@ -168,9 +166,7 @@ async def list_federated_registry_agents(
 
 # Helper function for background synchronization
 async def sync_registry_agents(registry):
-    """
-    Synchronize agents from a federated registry.
-    """
+    """Synchronize agents from a federated registry."""
     try:
         # Make request to the federated registry to get agents
         async with httpx.AsyncClient(timeout=30.0) as client:
