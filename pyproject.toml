@@ -47,7 +47,24 @@ line-length = 88
 profile = "black"
 
 [tool.ruff]
-line-length = 88
+# Line length configuration (matching your previous flake8 setting)
+line-length = 120
+
+# Select rules to enforce
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = ["E203"]  # Same as Black recommends
+
+# Configure isort rules within Ruff
+[tool.ruff.lint.isort]
+known-first-party = ["pebbling"]
+
+# Format configuration (to make formatting compatible with Black)
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

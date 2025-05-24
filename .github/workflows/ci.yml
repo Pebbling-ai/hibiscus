@@ -8,47 +8,44 @@ on:
 
 jobs:
   test:
+    name: Test project
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-          cache: 'pip'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install uv
-        run: |
-          pip install uv
-          uv --version
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
 
       - name: Install dependencies
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv sync --frozen
+        run: uv sync --locked --all-extras --dev
 
       - name: Run tests
-        run: |
-          source .venv/bin/activate
-          pytest
+        run: uv run pytest
 
   deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
+        run: npm install -g @railway/cli
 
-      - name: Deploy to Railway
+      - name: Deploy project
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --service=${{ vars.RAILWAY_SERVICE_ID || '4e146df0-3644-4170-9090-61686c91dd9d' }} --detach
+          railway up \
+            --service=${{ vars.RAILWAY_SERVICE_ID || '4e146df0-3644-4170-9090-61686c91dd9d' }} \
+            --detach
