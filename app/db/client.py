@@ -386,6 +386,139 @@ class Database:
             raise Exception(f"Error counting API keys: {response.error.message}")
         
         return response.count
+    
+
+    @staticmethod
+    async def create_user(email: str, full_name: str, session_id: str) -> Dict[str, Any]:
+        """
+        Create a new user and associate the Clerk session ID as an API key.
+        
+        Args:
+            email: User's email address
+            full_name: User's full name
+            session_id: Clerk session ID to use as API key
+            
+        Returns:
+            Dictionary with user data and API key information
+        """
+        # Generate a UUID for the user
+        user_id = str(uuid.uuid4())
+        
+        # Get current timestamp
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Check if user with this email already exists
+        user_response = (
+            supabase.table(USERS_TABLE)
+            .select("*")
+            .eq("email", email)
+            .execute()
+        )
+        
+        if hasattr(user_response, "error") and user_response.error:
+            raise Exception(f"Error checking existing user: {user_response.error.message}")
+        
+        existing_user = None
+        if user_response.data:
+            existing_user = user_response.data[0]
+            user_id = existing_user["id"]
+        
+        # If user doesn't exist, create new user
+        if not existing_user:
+            user_data = {
+                "id": user_id,
+                "email": email,
+                "full_name": full_name,
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            user_response = (
+                supabase.table(USERS_TABLE)
+                .insert(user_data)
+                .execute()
+            )
+            
+            if hasattr(user_response, "error") and user_response.error:
+                raise Exception(f"Error creating user: {user_response.error.message}")
+            
+            user = user_response.data[0] if user_response.data else user_data
+        else:
+            # Update existing user if needed
+            user_data = {
+                "full_name": full_name,
+                "updated_at": now,
+            }
+            
+            user_response = (
+                supabase.table(USERS_TABLE)
+                .update(user_data)
+                .eq("id", user_id)
+                .execute()
+            )
+            
+            if hasattr(user_response, "error") and user_response.error:
+                raise Exception(f"Error updating user: {user_response.error.message}")
+            
+            user = user_response.data[0] if user_response.data else {**existing_user, **user_data}
+        
+        # Check if this session ID already exists as an API key
+        key_response = (
+            supabase.table(API_KEYS_TABLE)
+            .select("*")
+            .eq("key", session_id)
+            .execute()
+        )
+        
+        if hasattr(key_response, "error") and key_response.error:
+            raise Exception(f"Error checking existing API key: {key_response.error.message}")
+        
+        # If this session ID is already registered, return the existing data
+        if key_response.data:
+            existing_key = key_response.data[0]
+            
+            # Update last_used_at timestamp
+            key_update = (
+                supabase.table(API_KEYS_TABLE)
+                .update({"last_used_at": now})
+                .eq("id", existing_key["id"])
+                .execute()
+            )
+            
+            if hasattr(key_update, "error") and key_update.error:
+                logger.error(f"Error updating API key last_used_at: {key_update.error.message}")
+            
+            return {
+                "user": user,
+                "api_key": existing_key,
+            }
+        
+        # Create a new API key entry for the session ID
+        key_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "name": "clerk_session",
+            "key": session_id,
+            "created_at": now,
+            "last_used_at": now,
+            "is_active": True,
+        }
+        
+        key_response = (
+            supabase.table(API_KEYS_TABLE)
+            .insert(key_data)
+            .execute()
+        )
+        
+        if hasattr(key_response, "error") and key_response.error:
+            raise Exception(f"Error creating API key: {key_response.error.message}")
+        
+        api_key = key_response.data[0] if key_response.data else key_data
+        
+        return {
+            "user": user,
+            "api_key": api_key,
+        }
 
     @staticmethod
     async def list_api_keys(user_id: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
