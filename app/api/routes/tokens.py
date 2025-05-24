@@ -222,4 +222,3 @@ async def get_user_profile(
             "full_name": current_user["full_name"],
         },
     )
-
