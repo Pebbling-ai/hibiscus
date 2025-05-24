@@ -1164,8 +1164,8 @@ class TestDatabaseClient:
         if inserted_data and "did_document" in inserted_data:
             assert isinstance(inserted_data["did_document"], str)
 
-    # Verify correct table was used
-    setup_supabase.table.assert_called_with(AGENT_VERIFICATION_TABLE)
+        # Verify correct table was used
+        setup_supabase.table.assert_called_with(AGENT_VERIFICATION_TABLE)
 
 @pytest.mark.asyncio
 async def test_get_agent_by_federation_id(self, setup_supabase):
