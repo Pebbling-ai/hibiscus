@@ -71,7 +71,7 @@ async def add_federated_registry(
                 )
 
         # Create the federated registry
-        registry_data = registry.dict()
+        registry_data = registry.model_dump()
         created_registry = await Database.add_federated_registry(registry_data)
         return created_registry
     except Exception as e:

@@ -75,7 +75,7 @@ async def test_create_api_token_with_expiry_days(monkeypatch):
 
         # Verify result
         assert result.name == "Test Token"
-        assert "key" in result.dict()
+        assert "key" in result.model_dump()
         assert result.expires_at is not None
 
         # Verify CORS headers were set
@@ -124,7 +124,7 @@ async def test_create_api_token_permanent(monkeypatch):
 
         # Verify result
         assert result.name == "Permanent Token"
-        assert "key" in result.dict()
+        assert "key" in result.model_dump()
         assert result.expires_at is None
 
 

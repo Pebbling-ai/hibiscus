@@ -13,6 +13,18 @@ import sys
 sys.modules["supabase"] = mock.MagicMock()
 sys.modules["supabase.client"] = mock.MagicMock()
 
+# Define a custom marker for tests that need to be skipped temporarily
+def pytest_configure(config):
+    """
+    Add custom markers to pytest configuration.
+    
+    This allows us to skip specific tests that are currently failing until they're fixed.
+    """
+    config.addinivalue_line(
+        "markers", 
+        "federated_agent: mark tests related to federated agent functionality that may need fixes"
+    )
+
 # Mock dependencies that might not be installed
 sys_modules_patcher = mock.patch.dict(
     "sys.modules",

@@ -30,7 +30,7 @@ async def agent_health_ping(
     """
     try:
         # Create or update the health record
-        health_record = await Database.record_agent_health(health_data.dict())
+        health_record = await Database.record_agent_health(health_data.model_dump())
         return health_record
     except Exception as e:
         raise HTTPException(

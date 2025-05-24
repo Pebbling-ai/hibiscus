@@ -1,12 +1,15 @@
 """Main application module for the Hibiscus service."""
 
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from loguru import logger
 
 from app.api.routes import agents, federated_registries, tokens, health
+from app.utils.typesense_utils import TypesenseClient
 
 # Load environment variables
 load_dotenv()
@@ -20,12 +23,42 @@ APP_VERSION = "0.1.0"
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for application startup and shutdown events."""
+    # Startup logic
+    try:
+        # Initialize Typesense collections
+        initialized = await TypesenseClient.initialize_collections()
+        if initialized:
+            logger.info("✅ Typesense collections initialized successfully")
+            
+            # Sync agents to search index
+            await TypesenseClient.sync_agents_to_search_index()
+            logger.info("✅ Agents synced to search index")
+        else:
+            logger.warning("⚠️ Typesense initialization skipped or failed")
+    except Exception as e:
+        logger.error(f"❌ Error during startup: {str(e)}")
+    
+    yield  # Application runs here
+    
+    # Shutdown logic
+    try:
+        # Add any cleanup logic here if needed
+        logger.info("✅ Shutdown complete")
+    except Exception as e:
+        logger.error(f"❌ Error during shutdown: {str(e)}")
+
+
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
     app = FastAPI(
         title=APP_TITLE,
         description=APP_DESCRIPTION,
         version=APP_VERSION,
+        lifespan=lifespan,
     )
 
     # Configure CORS

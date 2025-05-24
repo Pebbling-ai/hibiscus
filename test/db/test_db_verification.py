@@ -147,7 +147,7 @@ class TestDatabaseVerification:
         # Verify the mock was called
         setup_supabase.table.assert_called_once_with(AGENTS_TABLE)
         setup_supabase.table.return_value.select.assert_called_once_with(
-            "count", count="exact"
+            "id", count="exact"
         )
         mock_query.eq.assert_called_once_with("registry_id", registry_id)
 
@@ -173,7 +173,7 @@ class TestDatabaseVerification:
         # Verify the mock was called
         setup_supabase.table.assert_called_once_with(AGENTS_TABLE)
         setup_supabase.table.return_value.select.assert_called_once_with(
-            "count", count="exact"
+            "id", count="exact"
         )
 
     @pytest.mark.asyncio

@@ -1,7 +1,7 @@
 """Data schemas for the Hibiscus application."""
 
 from typing import List, Optional, Dict, Any, Literal, TypeVar, Generic
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
@@ -170,10 +170,8 @@ class Agent(AgentBase):
     public_key: Optional[str] = None
     did_document: Optional[Dict[str, Any]] = None
 
-    class Config:
-        """Pydantic configuration for the model."""
-
-        from_attributes = True
+    # Modern Pydantic V2 configuration
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Agent Health Models
@@ -198,10 +196,8 @@ class AgentHealth(AgentHealthBase):
     id: str
     last_ping_at: datetime
 
-    class Config:
-        """Pydantic configuration for the model."""
-
-        from_attributes = True
+    # Modern Pydantic V2 configuration
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AgentHealthSummary(BaseModel):
@@ -236,10 +232,8 @@ class FederatedRegistry(FederatedRegistryBase):
     created_at: datetime
     last_synced_at: Optional[datetime] = None
 
-    class Config:
-        """Pydantic configuration for the model."""
-
-        from_attributes = True
+    # Modern Pydantic V2 configuration
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Response Models
@@ -272,7 +266,5 @@ class PaginatedResponse(BaseModel, Generic[T]):
     items: List[T]
     metadata: PaginationMetadata
 
-    class Config:
-        """Pydantic configuration for the model."""
-
-        from_attributes = True
+    # Modern Pydantic V2 configuration
+    model_config = ConfigDict(from_attributes=True)

@@ -5,10 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.db.client import Database
 from app.core.auth import get_current_user_from_api_key
 from app.models.schemas import Agent, AgentCreate, AgentUpdate, PaginatedResponse
-from app.utils.typesense_utils import TypesenseClient
 from app.utils.search_utils import (
     search_agents,
     create_agent_with_verification,
@@ -18,47 +16,8 @@ from app.utils.search_utils import (
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-# Flag to track if startup event has already run
-_startup_has_run = False
-
-
-# Initialize Typesense collections on startup
-@router.on_event("startup")
-async def startup_event():
-    """Initialize Typesense collections and sync agents on startup."""
-    global _startup_has_run
-
-    # Skip if already run
-    if _startup_has_run:
-        logger.debug("Startup event already executed, skipping duplicate run")
-        return
-
-    _startup_has_run = True
-
-    try:
-        # Initialize Typesense collections
-        initialized = await TypesenseClient.initialize_collections()
-        if initialized:
-            # Get all agents from database for syncing
-            async def fetch_agent(agent_id):
-                return await Database.get_agent(agent_id)
-
-            # Get all agent IDs first
-            agents = await Database.list_agents(limit=1000, offset=0)
-            agent_ids = [str(agent["id"]) for agent in agents if "id" in agent]
-
-            if agent_ids:
-                # Sync agents with Typesense
-                results = await TypesenseClient.bulk_sync_agents(agent_ids, fetch_agent)
-                success_count = sum(1 for success in results.values() if success)
-
-                logger.info(
-                    f"Startup sync: Processed {len(agent_ids)} agents, successfully synced {success_count}"
-                )
-            else:
-                logger.info("No agents found to sync during startup")
-    except Exception as e:
-        logger.error(f"Error initializing Typesense or syncing agents: {str(e)}")
+# Note: The startup initialization has been moved to the lifespan context manager in main.py
+# This eliminates the deprecated on_event usage and improves code organization
 
 
 @router.get("/", response_model=PaginatedResponse[Agent])
@@ -111,7 +70,7 @@ async def create_agent(
     """
     try:
         # Convert Pydantic model to dict
-        agent_data = agent.dict()
+        agent_data = agent.model_dump()
 
         # Use the utility function
         result = await create_agent_with_verification(agent_data, current_user["id"])
@@ -140,7 +99,7 @@ async def update_agent(
     """Update an existing agent (requires authentication and ownership)."""
     try:
         # Filter out None values to only update provided fields
-        update_data = {k: v for k, v in agent_update.dict().items() if v is not None}
+        update_data = {k: v for k, v in agent_update.model_dump().items() if v is not None}
 
         # Use the utility function for agent update with Typesense sync
         updated_agent = await update_agent_with_typesense(

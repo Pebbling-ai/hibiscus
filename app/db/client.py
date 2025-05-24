@@ -371,29 +371,8 @@ class Database:
 
         return parse_json_fields(response.data[0])
 
-    @staticmethod
-    async def count_agents(registry_id: Optional[str] = None) -> int:
-        """
-        Count agents with optional filtering by registry_id.
-
-        Args:
-            registry_id: Optional registry ID to filter by
-
-        Returns:
-            Count of matching agents
-        """
-        # Use Supabase
-        query = supabase.table(AGENTS_TABLE).select("count", count="exact")
-
-        if registry_id:
-            query = query.eq("registry_id", registry_id)
-
-        response = query.execute()
-
-        if hasattr(response, "error") and response.error:
-            raise Exception(f"Error counting agents: {response.error.message}")
-
-        return response.count
+    # Note: Duplicate count_agents method was removed
+    # The original is defined at line 305
 
     # ===== Authentication Methods =====
 
@@ -1020,7 +999,7 @@ class Database:
                 elif "test_db_client" in sys.modules:
                     # Try to access response.data[0] - this is what the test expects
                     if hasattr(response, 'data') and response.data:
-                        if type(response.data) != MagicMock:
+                        if not isinstance(response.data, MagicMock):
                             # If it's a real list, use the first item
                             result = response.data[0]
                         else:
