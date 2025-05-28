@@ -161,11 +161,8 @@ SUPABASE_SCHEMA = {
                     "notNull": True,
                     "default": "mlts",
                 },
-                {"name": "encrypted_private_key", "type": "text"},
-                {"name": "encryption_type", "type": "text", "default": "AES-256-GCM"},
                 {"name": "key_reference", "type": "text"},
                 {"name": "encryption_metadata", "type": "jsonb"},
-                {"name": "private_key_path", "type": "text"},
                 {"name": "key_metadata", "type": "jsonb"},
                 {
                     "name": "created_at",
